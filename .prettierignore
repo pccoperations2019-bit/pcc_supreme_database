@@ -1,0 +1,9 @@
+vendor/
+node_modules/
+public/build/
+storage/
+*.min.js
+*.min.css
+
+resources/js/components/ui/
+resources/js/Components/ui/

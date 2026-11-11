@@ -1,0 +1,33 @@
+name: AI Code Review
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  ai-code-review:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run AI Code Reviewer
+        run: node src/index.js --action=review --agent=code-reviewer.md
+
+      - name: Comment on PR
+        run: |
+          if [ -f review-comments.txt ]; then
+            gh pr comment ${{ github.event.pull_request.number }} --body "$(cat review-comments.txt)"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

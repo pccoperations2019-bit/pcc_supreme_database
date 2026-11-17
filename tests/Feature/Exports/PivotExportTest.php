@@ -2,22 +2,28 @@
 
 namespace Tests\Feature\Exports;
 
+use App\Enums\UserRoleEnum;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use Tests\Feature\Users\InteractsWithUsers;
 use Tests\TestCase;
 
 class PivotExportTest extends TestCase
 {
+    use InteractsWithUsers;
     use RefreshDatabase;
 
     public function test_export_uses_field_labels_as_headers(): void
     {
+        $this->seedRolesAndPermissions();
         $user = User::factory()->create([
             'username' => 'user-'.Str::uuid(),
         ]);
+
+        $user->assignRole(UserRoleEnum::AGENCY_ADMIN->value);
 
         $agencyId = DB::table('agencies')->insertGetId([
             'code' => 'AGT-EXP',

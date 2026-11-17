@@ -98,6 +98,23 @@ class MonthlyTaskFilterTest extends TestCase
         $this->assertSame([$reported->id], $this->taskIdsFor(['status' => 'no_data']));
     }
 
+    public function test_under_review_filter_keeps_center_and_period_boundaries(): void
+    {
+        $mine = $this->monthlyTask($this->mine, ['year' => 2026, 'month' => 1]);
+        $this->withMilkProduction($this->mine, 2026, 1);
+        $this->monthlyTask($this->theirs, ['year' => 2026, 'month' => 1]);
+        $this->withMilkProduction($this->theirs, 2026, 1);
+        $this->monthlyTask($this->mine, ['year' => 2026, 'month' => 2]);
+        $this->withMilkProduction($this->mine, 2026, 2);
+
+        $rows = $this->actingAs($this->monthlyTaskCenterAdmin($this->mine))
+            ->get(route('monthly-tasks.index', ['filter' => ['status' => 'under_review', 'year' => 2026, 'month' => 1]]))
+            ->assertOk()
+            ->viewData('page')['props']['tasks']['data'];
+
+        $this->assertSame([$mine->id], array_column($rows, 'id'));
+    }
+
     public function test_it_can_be_filtered_by_program(): void
     {
         $cbed = $this->monthlyTask($this->mine, [

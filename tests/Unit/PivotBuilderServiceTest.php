@@ -4,12 +4,16 @@ namespace Tests\Unit;
 
 use App\Services\PivotBuilderService;
 use App\Services\PivotFieldRegistryService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\TestCase;
 
 class PivotBuilderServiceTest extends TestCase
 {
+    use RefreshDatabase;
+
     private PivotBuilderService $builder;
 
     private PivotFieldRegistryService $registry;
@@ -106,6 +110,24 @@ class PivotBuilderServiceTest extends TestCase
             ]);
 
             $this->assertIsArray($result);
+        }
+    }
+
+    public function test_filter_operators_restrict_the_returned_rows(): void
+    {
+        $agencyId = DB::table('agencies')->insertGetId(['code' => 'PIVOT', 'name' => 'Pivot agency']);
+        foreach (['A', 'B', 'C'] as $code) {
+            DB::table('centers')->insert(['agency_id' => $agencyId, 'code' => $code, 'name' => $code]);
+        }
+
+        foreach (['=' => ['B'], '!=' => ['A', 'C'], '>' => ['C'], '<' => ['A'], '>=' => ['B', 'C'], '<=' => ['A', 'B'], 'like' => ['B']] as $operator => $codes) {
+            $result = $this->builder->build([
+                'source' => 'center',
+                'rows' => ['code'],
+                'filters' => [['field' => 'code', 'op' => $operator, 'value' => 'B']],
+            ]);
+
+            $this->assertSame($codes, array_column($result['rows'], 'code'), $operator);
         }
     }
 

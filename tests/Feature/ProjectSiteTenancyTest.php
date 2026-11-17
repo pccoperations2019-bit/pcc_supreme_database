@@ -8,19 +8,19 @@ use App\Models\Project;
 use App\Models\ProjectSite;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Spatie\Permission\Models\Role;
+use Tests\Feature\Users\InteractsWithUsers;
 use Tests\TestCase;
 
 class ProjectSiteTenancyTest extends TestCase
 {
+    use InteractsWithUsers;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        Role::findOrCreate('center-admin', 'web');
-        Role::findOrCreate('agency-admin', 'web');
+        $this->seedRolesAndPermissions();
     }
 
     /**

@@ -79,13 +79,15 @@ class MonthlyTaskTotalVolumeTest extends TestCase
     {
         $task = $this->monthlyTask($this->center, ['year' => 2026, 'month' => 1]);
 
-        ManureSales::query()->create([
-            'center_id' => $this->center->id,
-            'program' => 'ih',
-            'year' => 2026,
-            'month' => 1,
-            'total_sales' => 100,
-        ]);
+        foreach ([1 => 100, 2 => 900] as $month => $volume) {
+            MilkProduction::query()->create([
+                'center_id' => $this->center->id,
+                'program' => 'ih',
+                'year' => 2026,
+                'month' => $month,
+                'total_volume_produced' => $volume,
+            ]);
+        }
 
         $this->assertSame(100.0, $task->fresh()->totalVolume());
     }

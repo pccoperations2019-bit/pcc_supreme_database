@@ -86,13 +86,24 @@ class MonthlyTaskEndpointsTest extends TestCase
         $this->monthlyTaskCenterAdmin($this->mine);
         $this->monthlyTaskCenterAdmin($this->theirs);
 
-        $response = $this->actingAs($this->monthlyTaskCenterAdmin($this->mine))
+        $reviewer = $this->userWithRole(UserRoleEnum::REVIEWER, $this->agency, $this->mine);
+        $reviewer->givePermissionTo('review-monthly-tasks');
+
+        $response = $this->actingAs($reviewer)
             ->postJson(route('monthly-tasks.remind'))
             ->assertOk()
             ->json();
 
         $this->assertSame(1, $response['center_count']);
         $this->assertSame($this->mine->id, $response['centers'][0]['center_id']);
+    }
+
+    public function test_reminder_preview_requires_review_permission(): void
+    {
+        $this->monthlyTask($this->mine);
+        $this->actingAs($this->monthlyTaskCenterAdmin($this->mine))
+            ->postJson(route('monthly-tasks.remind'))
+            ->assertForbidden();
     }
 
     public function test_the_completion_report_is_pcc_level(): void
@@ -230,7 +241,7 @@ class MonthlyTaskEndpointsTest extends TestCase
         $this->assertSame('manure-sales.create', $routes['manure:sales']['route']);
     }
 
-    public function test_milk_sales_falls_back_to_its_index(): void
+    public function test_milk_sales_opens_a_prefilled_create_form(): void
     {
         $this->monthlyTask($this->mine, ['year' => 2026, 'month' => 1]);
 
@@ -239,8 +250,8 @@ class MonthlyTaskEndpointsTest extends TestCase
             ->assertOk()
             ->viewData('page')['props']['entryRoutes'];
 
-        $this->assertSame('milk-sales.index', $routes['milk:sales']['route']);
-        $this->assertFalse($routes['milk:sales']['prefilled']);
+        $this->assertSame('milk-sales.create', $routes['milk:sales']['route']);
+        $this->assertTrue($routes['milk:sales']['prefilled']);
 
         $this->assertTrue($routes['milk:production']['prefilled']);
     }

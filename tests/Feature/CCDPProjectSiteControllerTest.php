@@ -2,23 +2,26 @@
 
 namespace Tests\Feature;
 
+use App\Enums\UserRoleEnum;
 use App\Models\Agency;
 use App\Models\Center;
 use App\Models\Partner;
 use App\Models\ProjectSite;
-use Illuminate\Auth\Middleware\Authenticate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Feature\Users\InteractsWithUsers;
 use Tests\TestCase;
 
 class CCDPProjectSiteControllerTest extends TestCase
 {
+    use InteractsWithUsers;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->withoutMiddleware(Authenticate::class);
+        $this->seedRolesAndPermissions();
+        $this->actingAs($this->userWithRole(UserRoleEnum::AGENCY_ADMIN));
     }
 
     public function test_store_normalizes_and_persists_the_processing_partner_without_mass_assigning_child_relations(): void
@@ -59,7 +62,7 @@ class CCDPProjectSiteControllerTest extends TestCase
             'center_id' => $center->id,
             'processing_partner_id' => $processingPartner->id,
             'processing_infrastructure' => [[
-                'type_of_ownership' => null,
+                'type_of_ownership' => 'owned',
             ]],
         ]);
 

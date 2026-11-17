@@ -153,7 +153,7 @@ class DocumentReviewWorkflowTest extends TestCase
         $document = $this->upload();
 
         $submission = Activity::forSubject($document)
-            ->where('event', 'document-submitted-for-review')
+            ->where('event', 'document-submitted-for-center-review')
             ->sole();
 
         $this->assertTrue($submission->causer->is($this->centerAdmin));
@@ -275,7 +275,7 @@ class DocumentReviewWorkflowTest extends TestCase
         $this->actingAs($this->pccAdmin)
             ->from(route('documents.index'))
             ->post(route('documents.approve', $document))
-            ->assertSessionHas('error');
+            ->assertForbidden();
 
         $this->assertSame(
             1,
@@ -363,13 +363,14 @@ class DocumentReviewWorkflowTest extends TestCase
 
     public function test_the_inertia_json_payload_carries_the_reviewer(): void
     {
+        Event::fake([EntityTagged::class]);
         $document = $this->pendingReview();
 
         $this->actingAs($this->pccAdmin)->post(route('documents.approve', $document));
 
         // What the browser actually receives over the wire.
         $json = $this->actingAs($this->pccAdmin)
-            ->get(route('documents.index'), ['X-Inertia' => 'true', 'X-Requested-With' => 'XMLHttpRequest'])
+            ->get(route('documents.index'), ['X-Inertia' => 'true', 'X-Inertia-Version' => app(\App\Http\Middleware\HandleInertiaRequests::class)->version(request()), 'X-Requested-With' => 'XMLHttpRequest'])
             ->assertOk()
             ->json('props.documents.data');
 
@@ -436,7 +437,23 @@ class DocumentReviewWorkflowTest extends TestCase
 
         $this->actingAs($this->centerAdmin)
             ->get(route('documents.edit', $document))
-            ->assertOk();
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('Documents/Edit')->where('document.id', $document->id));
+
+        $document->update(['description' => 'Old description']);
+        $fileId = $document->file_id;
+        $this->actingAs($this->centerAdmin)
+            ->put(route('documents.update', $document), ['title' => 'Corrected reporting period'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame('Corrected reporting period', $document->fresh()->title);
+        $this->assertSame($fileId, $document->fresh()->file_id);
+        $this->assertSame('Old description', $document->fresh()->description);
+
+        $this->actingAs($this->centerAdmin)
+            ->put(route('documents.update', $document), ['title' => 'Corrected reporting period', 'description' => ''])
+            ->assertSessionHasNoErrors();
+        $this->assertNull($document->fresh()->description);
+        $this->assertSame('CLSU', $document->fresh()->tags->firstWhere('key', 'center')->value);
 
         $this->actingAs($this->centerAdmin)
             ->from(route('documents.index'))

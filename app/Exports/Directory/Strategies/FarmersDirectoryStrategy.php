@@ -199,9 +199,8 @@ final class FarmersDirectoryStrategy implements DirectoryEntityStrategy
         if ($variant === 'accreditations') {
             $farmerIds = $data->pluck('id')->unique()->values()->all();
             $addresses = DirectoryLocationResolver::resolveAddresses('farmer', $farmerIds);
-            $farmerCodes = $data->pluck('code')->filter()->values()->all();
             $farmerIdsArray = $data->pluck('id')->filter()->values()->all();
-            // Use IDs for farmers tags (partner/farmer store IDs)
+            // The resolver returns documents keyed by farmer ID.
             $csoDocuments = DirectoryAccreditationResolver::getDocuments('farmer', $farmerIdsArray, 'cso');
             $fdaLtoDocuments = DirectoryAccreditationResolver::getDocuments('farmer', $farmerIdsArray, 'fda-lto');
             $ndaLtoDocuments = DirectoryAccreditationResolver::getDocuments('farmer', $farmerIdsArray, 'nda-lto');
@@ -340,10 +339,10 @@ final class FarmersDirectoryStrategy implements DirectoryEntityStrategy
         $mfpEngagement = DirectoryEngagementResolver::getFarmerMfpEngagement($farmerIds);
         $addresses = DirectoryLocationResolver::resolveAddresses('farmer', $farmerIds);
 
-        $farmerCodes = $data->pluck('code')->filter()->values()->all();
-        $ndaLtoDocuments = DirectoryAccreditationResolver::getDocuments('farmer', $farmerCodes, 'nda-lto');
-        $ffedisDocuments = DirectoryAccreditationResolver::getDocuments('farmer', $farmerCodes, 'ffedis');
-        $rsbsaDocuments = DirectoryAccreditationResolver::getDocuments('farmer', $farmerCodes, 'rsbsa');
+        $farmerIdsArray = $data->pluck('id')->filter()->values()->all();
+        $ndaLtoDocuments = DirectoryAccreditationResolver::getDocuments('farmer', $farmerIdsArray, 'nda-lto');
+        $ffedisDocuments = DirectoryAccreditationResolver::getDocuments('farmer', $farmerIdsArray, 'ffedis');
+        $rsbsaDocuments = DirectoryAccreditationResolver::getDocuments('farmer', $farmerIdsArray, 'rsbsa');
 
         return $data->map(function ($farmer) use ($depth, $products, $mfpEngagement, $addresses, $ndaLtoDocuments, $ffedisDocuments, $rsbsaDocuments) {
             $row = [$farmer->center_code];
@@ -379,9 +378,9 @@ final class FarmersDirectoryStrategy implements DirectoryEntityStrategy
             $row[] = $mfpEngagement[$farmer->id]['engaged'] ?? 'No';
             $row[] = $mfpEngagement[$farmer->id]['date'] ?? '';
 
-            $ndaDoc = $ndaLtoDocuments[$farmer->code] ?? null;
-            $ffedisDoc = $ffedisDocuments[$farmer->code] ?? null;
-            $rsbsaDoc = $rsbsaDocuments[$farmer->code] ?? null;
+            $ndaDoc = $ndaLtoDocuments[$farmer->id] ?? null;
+            $ffedisDoc = $ffedisDocuments[$farmer->id] ?? null;
+            $rsbsaDoc = $rsbsaDocuments[$farmer->id] ?? null;
 
             $row[] = DirectoryAccreditationResolver::resolveStatus($ndaDoc?->compliance_status, false);
             $row[] = DirectoryAccreditationResolver::formatValidity($ndaDoc?->validity);

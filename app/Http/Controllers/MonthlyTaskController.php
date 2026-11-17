@@ -195,7 +195,7 @@ class MonthlyTaskController extends Controller
     ): JsonResponse {
         $viewer = $request->user();
 
-        $this->authorize('review', MonthlyTask::class);
+        $this->authorize('remind', MonthlyTask::class);
 
         $validated = $request->validate([
             'center_id' => ['nullable', 'integer', 'exists:centers,id'],

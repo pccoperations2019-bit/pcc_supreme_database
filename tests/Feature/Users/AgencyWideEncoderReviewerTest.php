@@ -163,7 +163,7 @@ class AgencyWideEncoderReviewerTest extends TestCase
 
         $this->actingAs($reviewer)
             ->post(route('documents.approve', $document))
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->assertSame(
             DocumentStatusEnum::PENDING_AGENCY_REVIEW,

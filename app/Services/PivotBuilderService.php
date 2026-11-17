@@ -166,6 +166,14 @@ class PivotBuilderService
         foreach ($filters as $f) {
             $qualified = $this->qualify($cfg, $f['field']);
 
+            if (array_key_exists('op', $f)) {
+                abort_unless(in_array($f['op'], ['=', '!=', '>', '<', '>=', '<=', 'like'], true), 422, 'Invalid filter operator');
+                abort_unless(array_key_exists('value', $f) && is_scalar($f['value']), 422, 'Invalid filter value');
+                $query->where($qualified, $f['op'], $f['value']);
+
+                continue;
+            }
+
             $query->where(function ($q) use ($qualified, $f) {
                 if (! empty($f['values'])) {
                     $q->whereIn($qualified, $f['values']);

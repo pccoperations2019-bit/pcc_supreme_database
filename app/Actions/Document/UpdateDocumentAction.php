@@ -38,7 +38,7 @@ class UpdateDocumentAction
 
             $updateData = [
                 'title' => $fileName ?? $title ?? $document->title,
-                'description' => $description ?? $document->description,
+                'description' => $description !== null ? ($description !== '' ? $description : null) : $document->description,
                 'registration_number' => $registrationNumber ?? $document->registration_number,
                 'validity' => $validity ?? $document->validity,
                 'compliance_status' => $complianceStatus !== null ? ($complianceStatus !== '' ? $complianceStatus : null) : $document->compliance_status,

@@ -149,7 +149,7 @@ class CenterReviewerTest extends TestCase
 
         $this->actingAs($this->reviewer)
             ->post("/documents/{$document->id}/approve")
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->assertSame(DocumentStatusEnum::PENDING_CENTER_REVIEW, $document->fresh()->status);
     }
@@ -160,7 +160,7 @@ class CenterReviewerTest extends TestCase
 
         $this->actingAs($this->reviewer)
             ->post("/documents/{$document->id}/reject", ['rejection_reason' => 'nope'])
-            ->assertForbidden();
+            ->assertNotFound();
     }
 
     public function test_a_pcc_administrator_cannot_skip_center_review(): void

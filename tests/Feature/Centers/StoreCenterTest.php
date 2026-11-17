@@ -8,19 +8,19 @@ use App\Models\Center;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
-use Spatie\Permission\Models\Role;
+use Tests\Feature\Users\InteractsWithUsers;
 use Tests\TestCase;
 
 class StoreCenterTest extends TestCase
 {
+    use InteractsWithUsers;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        Role::findOrCreate(UserRoleEnum::AGENCY_ADMIN->value, 'web');
-        Role::findOrCreate(UserRoleEnum::CENTER_ADMIN->value, 'web');
+        $this->seedRolesAndPermissions();
     }
 
     /**

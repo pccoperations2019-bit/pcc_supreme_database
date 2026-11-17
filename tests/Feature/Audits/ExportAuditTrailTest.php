@@ -171,7 +171,15 @@ class ExportAuditTrailTest extends TestCase
         $file->uploadedBy()->associate($this->pccAdmin);
         $file->save();
 
+        $centerReviewer = $this->userWithRole(UserRoleEnum::REVIEWER, $this->agency, $this->center);
         $document = new Document(['title' => $title, 'status' => DocumentStatusEnum::APPROVED]);
+        $document->forceFill([
+            'submission_version' => 1,
+            'center_reviewed_by' => $centerReviewer->id,
+            'center_reviewed_at' => now(),
+            'agency_reviewed_by' => $this->pccAdmin->id,
+            'agency_reviewed_at' => now(),
+        ]);
         $document->file()->associate($file);
         $document->save();
 
@@ -211,7 +219,7 @@ class ExportAuditTrailTest extends TestCase
 
     private function user(string $username, string $role): User
     {
-        $user = User::create([
+        $user = User::factory()->create([
             'agency_id' => $this->agency->id,
             'center_id' => null,
             'name' => $username,

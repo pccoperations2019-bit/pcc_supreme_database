@@ -382,7 +382,7 @@ class DocumentController extends Controller
         $document = $updateDocumentAction->execute(
             document: $document,
             title: $request->input('title'),
-            description: $request->input('description'),
+            description: $request->has('description') ? (string) $request->input('description') : null,
             registrationNumber: $request->input('registration_number'),
             validity: $request->input('validity'),
             complianceStatus: $request->input('compliance_status'),

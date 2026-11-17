@@ -43,6 +43,11 @@ class MonthlyTaskPolicy
             && $this->belongsToUsersCenter($user, $monthlyTask);
     }
 
+    public function remind(User $user): bool
+    {
+        return $user->can('review-monthly-tasks');
+    }
+
     public function delete(User $user, MonthlyTask $monthlyTask): bool
     {
         return $user->can('generate-monthly-tasks')

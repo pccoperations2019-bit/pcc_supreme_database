@@ -50,16 +50,27 @@ final class DirectoryAccreditationResolver
                 'documents.compliance_status',
             ]);
 
-        // For centers, tags store codes. For partners/farmers, tags store IDs.
+        // Callers use IDs for partners/farmers. Uploads store their codes;
+        // older documents may still carry the ID as a string.
         if (in_array($entityType, ['partner', 'farmer'], true)) {
             $table = $entityType === 'partner' ? 'partners' : 'farmers';
             $query->join($table, function ($join) use ($table) {
-                $join->on('entity_tags.value', '=', $table.'.id');
+                $join->on('entity_tags.value', '=', $table.'.code')
+                    ->orOn('entity_tags.value', '=', DB::raw("CAST({$table}.id AS CHAR)"));
             })
-            // Filter by ID for partners/farmers since tags store IDs
-                ->whereIn('entity_tags.value', $entityCodes)
+                // Ambiguous code/legacy-ID tags cannot prove ownership. Do not
+                // grant accreditation to either entity until the tag is corrected.
+                ->whereNotExists(function ($conflict) use ($table) {
+                    $conflict->selectRaw('1')->from($table.' as conflicting_entity')
+                        ->whereColumn('conflicting_entity.id', '!=', $table.'.id')
+                        ->where(function ($match) {
+                            $match->whereColumn('conflicting_entity.code', 'entity_tags.value')
+                                ->orWhereRaw('CAST(conflicting_entity.id AS CHAR) = entity_tags.value');
+                        });
+                })
+                ->whereIn($table.'.id', $entityCodes)
                 ->select([
-                    'entity_tags.value as entity_code',
+                    $table.'.id as entity_code',
                     'documents.validity',
                     'documents.compliance_status',
                 ]);

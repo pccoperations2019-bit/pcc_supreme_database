@@ -12,7 +12,7 @@ use App\Models\Product;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
-use Spatie\Permission\Models\Role;
+use Tests\Feature\Users\InteractsWithUsers;
 use Tests\TestCase;
 
 /**
@@ -24,6 +24,7 @@ use Tests\TestCase;
  */
 class ProductLabelOptionsTest extends TestCase
 {
+    use InteractsWithUsers;
     use RefreshDatabase;
 
     private Center $center;
@@ -34,7 +35,7 @@ class ProductLabelOptionsTest extends TestCase
     {
         parent::setUp();
 
-        Role::findOrCreate(UserRoleEnum::AGENCY_ADMIN->value, 'web');
+        $this->seedRolesAndPermissions();
 
         $agency = Agency::create(['code' => 'PCC', 'name' => 'Philippine Carabao Center']);
         $this->center = Center::create([
@@ -49,7 +50,7 @@ class ProductLabelOptionsTest extends TestCase
             'category' => ProductCategoryEnum::MILK,
         ]);
 
-        $this->pccAdmin = User::create([
+        $this->pccAdmin = User::factory()->create([
             'agency_id' => $agency->id,
             'center_id' => null,
             'name' => 'pcc-admin',

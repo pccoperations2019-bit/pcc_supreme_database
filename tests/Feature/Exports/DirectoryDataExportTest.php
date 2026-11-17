@@ -51,7 +51,7 @@ class DirectoryDataExportTest extends TestCase
             region: 'all',
         ))->array();
 
-        $this->assertSame(['CENTER', 'REGION', 'CBED', 'TOTAL'], $programRows[0]);
+        $this->assertSame(['CENTER', 'REGION', 'CBED', 'CBIN', 'CCDP', 'CHB', 'PL480', 'EPAHP', 'TOTAL'], $programRows[0]);
         $this->assertSame('FIGURES', $programRows[1][0]);
         $this->assertSame('Region V (Bicol Region)', $programRows[1][1]);
         $this->assertSame(['CENTER', 'REGION', 'Active', 'Inactive', 'TOTAL'], $statusRows[0]);
@@ -115,7 +115,7 @@ class DirectoryDataExportTest extends TestCase
             partnerId: $partnerId,
         ))->array();
 
-        $this->assertSame(['CENTER', 'PARTNER NAME', 'CBED', 'TOTAL'], $figureRows[0]);
+        $this->assertSame(['CENTER', 'PARTNER NAME', 'CBED', 'CBIN', 'CCDP', 'CHB', 'PL480', 'EPAHP', 'TOTAL'], $figureRows[0]);
         $this->assertSame('Test Partner', $figureRows[1][1]);
     }
 
@@ -199,7 +199,7 @@ class DirectoryDataExportTest extends TestCase
         $this->assertSame(1, $figureRows[1][8]);
     }
 
-    public function test_all_regions_does_not_add_cascaded_province_column(): void
+    public function test_all_provinces_includes_the_province_column(): void
     {
         $centerId = $this->createCenter('ALLREG');
 
@@ -214,6 +214,7 @@ class DirectoryDataExportTest extends TestCase
         $this->assertSame([
             'CENTER',
             'REGION',
+            'PROVINCE',
             'STATUS',
             'PROGRAM',
             'Products',
@@ -227,9 +228,10 @@ class DirectoryDataExportTest extends TestCase
         ], $rows[0]);
         $this->assertSame('ALLREG', $rows[1][0]);
         $this->assertSame('Region V (Bicol Region)', $rows[1][1]);
-        $this->assertSame('Active', $rows[1][2]);
-        $this->assertSame('CBED', $rows[1][3]);
-        $this->assertSame('', $rows[1][4]);
+        $this->assertSame('Camarines Sur', $rows[1][2]);
+        $this->assertSame('Active', $rows[1][3]);
+        $this->assertSame('CBED', $rows[1][4]);
+        $this->assertSame('', $rows[1][5]);
         $this->assertSame('', $rows[1][8]);
         $this->assertSame('', $rows[1][10]);
     }

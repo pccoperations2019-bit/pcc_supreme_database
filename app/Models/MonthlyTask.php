@@ -41,6 +41,18 @@ class MonthlyTask extends Model
 
     protected $guarded = [
         'id',
+        'is_completed',
+        'completed_at',
+        'completed_by',
+        'is_no_data',
+        'no_data_at',
+        'no_data_by',
+        'review_status',
+        'submitted_at',
+        'reviewed_at',
+        'reviewed_by',
+        'review_note',
+        'return_reason',
     ];
 
     public function center(): BelongsTo
@@ -210,9 +222,12 @@ class MonthlyTask extends Model
 
     public static function syncSubmissionFor(Model $record, string $productType, string $taskType): void
     {
+        // Database defaults are not hydrated on a newly inserted Eloquent model.
+        $program = $record->program ?? ProgramEnum::DEFAULT;
+
         $task = static::query()
             ->where('center_id', $record->center_id)
-            ->where('program', is_string($record->program) ? $record->program : $record->program->value)
+            ->where('program', is_string($program) ? $program : $program->value)
             ->where('product_type', $productType)
             ->where('task_type', $taskType)
             ->where('year', $record->year)
@@ -229,9 +244,11 @@ class MonthlyTask extends Model
 
     public static function syncCompletionAfterDelete(Model $record, string $productType, string $taskType): void
     {
+        $program = $record->program ?? ProgramEnum::DEFAULT;
+
         $task = static::query()
             ->where('center_id', $record->center_id)
-            ->where('program', is_string($record->program) ? $record->program : $record->program->value)
+            ->where('program', is_string($program) ? $program : $program->value)
             ->where('product_type', $productType)
             ->where('task_type', $taskType)
             ->where('year', $record->year)

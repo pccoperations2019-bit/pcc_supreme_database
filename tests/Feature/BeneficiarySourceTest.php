@@ -69,10 +69,10 @@ class BeneficiarySourceTest extends TestCase
         }
         BeneficiarySource::create($this->payload(['year' => 2025]));
         $response = $this->get(route('beneficiary-sources.index', ['filter' => ['year' => 2026]]))->assertOk();
-        $response->assertInertia(fn (Assert $page) => $page->component('BeneficiarySources/Index')->has('sources.data', 15)->where('sources.total', 16)->where('filters.year', '2026')->where('sourceLabels.depEd', 'DepEd'));
+        $response->assertInertia(fn (Assert $page) => $page->component('BeneficiarySources/Index')->has('sources.data', 10)->where('sources.total', 16)->where('filters.year', '2026')->where('sourceLabels.depEd', 'DepEd'));
         $nextUrl = $response->viewData('page')['props']['sources']['next_page_url'];
         $this->assertStringContainsString('filter%5Byear%5D=2026', $nextUrl);
-        $this->get($nextUrl)->assertInertia(fn (Assert $page) => $page->has('sources.data', 1)->where('sources.data.0.year', 2026));
+        $this->get($nextUrl)->assertInertia(fn (Assert $page) => $page->has('sources.data', 6)->where('sources.data.0.year', 2026));
     }
 
     public function test_readers_can_view_but_cannot_write_and_guests_must_log_in(): void

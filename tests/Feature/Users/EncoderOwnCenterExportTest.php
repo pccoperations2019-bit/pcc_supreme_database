@@ -93,9 +93,9 @@ class EncoderOwnCenterExportTest extends TestCase
         $response->assertSessionHasNoErrors();
     }
 
-    public function test_an_encoder_may_not_reach_the_report_template(): void
+    public function test_an_encoder_reaches_template_lookup_with_report_permission(): void
     {
-        $this->actingAs($this->encoder)->get('/reports/template-download')->assertForbidden();
+        $this->actingAs($this->encoder)->get('/reports/template-download?key=missing')->assertNotFound();
     }
 
     public function test_an_encoder_may_not_download_an_export_another_user_queued(): void

@@ -79,6 +79,9 @@ jobs:
           echo "::add-mask::$key"
           echo "APP_KEY=$key" >> "$GITHUB_ENV"
 
+      - name: Create an empty environment file for the test application
+        run: touch .env
+
       - name: Install PHP dependencies from lockfile
         run: composer install --no-interaction --prefer-dist --no-progress
 

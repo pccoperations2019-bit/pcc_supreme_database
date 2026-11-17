@@ -6,6 +6,7 @@ use App\Exports\DirectoryDataExport;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class DirectoryDataExportCharacterizationTest extends TestCase
@@ -47,8 +48,8 @@ class DirectoryDataExportCharacterizationTest extends TestCase
 
         $partnerRows = $this->export('partners', 'list', $fixture['partners']);
         $this->assertSame([
-            'CHARCTR', 'Active', 'CBED', 'Milk', '', '', 'No', '', 'No', '',
-            'No', '', 'cooperative', '', '', '', '', '', '', 'Green', '', '',
+            'CHARCTR', 'Character Partner', 'Active', 'CBED', 'Milk', '', '', 'No', '', 'No', '',
+            'No', '', 'cooperative', '', '', '', '', '', '', '', '', '',
         ], $partnerRows[1]);
 
         $farmerRows = $this->export('farmers', 'list', $fixture['farmers']);
@@ -95,10 +96,17 @@ class DirectoryDataExportCharacterizationTest extends TestCase
         $this->assertSame('Province | Legacy', $rows[1][2]);
     }
 
-    public function test_partner_accreditation_resolves_from_correct_tag_schema(): void
+    public static function accreditationTags(): array
+    {
+        return [['partner', 'code'], ['partner', 'id'], ['farmer', 'code'], ['farmer', 'id']];
+    }
+
+    #[DataProvider('accreditationTags')]
+    public function test_accreditation_resolves_from_code_and_legacy_id_tags(string $entityType, string $tagFormat): void
     {
         $fixture = $this->createFixture();
-        $partnerId = $fixture['partners'];
+        $entityId = $fixture[$entityType.'s'];
+        $documentType = $entityType === 'partner' ? 'fda-lto' : 'nda-lto';
 
         // Create a user for the file upload
         $userId = DB::table('users')->insertGetId([
@@ -127,27 +135,48 @@ class DirectoryDataExportCharacterizationTest extends TestCase
         ]);
 
         // Correct schema: taggable_type=document, taggable_id=document.id
-        DB::table('tags')->insertMany([
+        DB::table('tags')->insert([
             [
                 'taggable_type' => 'document',
                 'taggable_id' => $documentId,
                 'key' => 'document',
-                'value' => 'fda-lto',
+                'value' => $documentType,
             ],
             [
                 'taggable_type' => 'document',
                 'taggable_id' => $documentId,
-                'key' => 'partner',
-                'value' => 'CHARPART',
+                'key' => $entityType,
+                'value' => $tagFormat === 'id' ? (string) $entityId : ($entityType === 'partner' ? 'CHARPART' : 'CHARFARM'),
             ],
         ]);
 
-        $rows = $this->export('partners', 'list', $partnerId);
+        $rows = $this->export($entityType.'s', 'list', $entityId);
 
-        // BASELINE: Currently shows empty because tag schema is wrong
-        // BUG FIX: Should now find the document and show accreditation status
-        $this->assertSame('', $rows[1][16]);
-        $this->assertSame('', $rows[1][17]);
+        $column = array_search($entityType === 'partner' ? 'FDA LTO' : 'NDA LTO', $rows[0], true);
+        $this->assertNotFalse($column);
+        $this->assertSame('Accredited', $rows[1][$column]);
+        $this->assertSame('2026-12-31', $rows[1][$column + 1]);
+
+        if ($tagFormat === 'id') {
+            // A code/legacy-ID collision cannot establish document ownership.
+            // Neither entity should gain accreditation from an ambiguous tag.
+            $attributes = $entityType === 'partner'
+                ? ['name' => 'Numeric code partner']
+                : ['first_name' => 'Numeric', 'last_name' => 'Code'];
+            $codeOwnerId = DB::table($entityType.'s')->insertGetId(array_merge($attributes, [
+                'code' => (string) $entityId,
+                'center_id' => $fixture['centers'],
+            ]));
+            $rows = $this->export($entityType.'s', 'list', $entityId);
+            $this->assertSame('', $rows[1][$column]);
+            $ownerRows = (new DirectoryDataExport(
+                template: $entityType.'s',
+                listAndFigures: 'list',
+                partnerId: $entityType === 'partner' ? $codeOwnerId : null,
+                farmerId: $entityType === 'farmer' ? $codeOwnerId : null,
+            ))->array();
+            $this->assertSame('', $ownerRows[1][$column]);
+        }
     }
 
     public function test_farmer_middle_name_is_exported(): void
@@ -246,6 +275,7 @@ class DirectoryDataExportCharacterizationTest extends TestCase
             'listAndFigures' => $mode,
             'centerId' => $template === 'centers' ? $entityId : null,
             'partnerId' => $template === 'partners' ? $entityId : null,
+            'farmerId' => $template === 'farmers' ? $entityId : null,
         ], $filters);
 
         return (new DirectoryDataExport(...$arguments))->array();

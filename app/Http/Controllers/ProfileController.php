@@ -53,10 +53,11 @@ class ProfileController extends Controller
 
         $user = $request->user();
 
-        $user->delete();
-
-        // Then logout after successful deletion
+        // Logout rotates the remember token and saves the model, so do it before
+        // deleting the account to avoid inserting the deleted user again.
         Auth::logout();
+
+        $user->delete();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();

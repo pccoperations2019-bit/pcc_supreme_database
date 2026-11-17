@@ -68,7 +68,7 @@ class SubmittedFigures
         $hasFigures = $alias.'.center_id is not null';
         $noDataReport = 'monthly_tasks.is_no_data = 1';
 
-        $undecided = 'monthly_tasks.review_status is null or monthly_tasks.review_status = ?';
+        $undecided = '(monthly_tasks.review_status is null or monthly_tasks.review_status = ?)';
 
         return match ($status) {
             'completed' => $query->whereRaw('monthly_tasks.review_status = ?', ['approved']),

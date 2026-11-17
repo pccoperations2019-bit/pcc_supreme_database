@@ -179,11 +179,12 @@ class DirectoryDataExport implements FromArray, WithEvents, WithStyles, WithTitl
             return $this->generateEntityAllDataFiguresOutput($data, $depth);
         }
 
+        $addresses = DirectoryLocationResolver::resolveAddresses('center', $data->pluck('id')->all());
         $headers = $strategy->figuresHeaders($depth, $variant);
         $figures = $this->figuresAggregator->aggregate(
             data: $data,
             depth: $depth,
-            dimensions: fn ($entity, int $figureDepth): array => $strategy->figureDimensions($entity, $figureDepth, $variant),
+            dimensions: fn ($entity, int $figureDepth): array => $this->entityLocationValues($entity, $addresses[$entity->id] ?? null, 'center', $figureDepth),
             totalLabel: $strategy->figuresCountLabel(),
         );
 

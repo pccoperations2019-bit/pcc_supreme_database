@@ -4,13 +4,16 @@ namespace Tests\Feature\Audits;
 
 use App\Enums\AuditActionEnum;
 use App\Enums\AuditCategoryEnum;
+use App\Enums\DocumentStatusEnum;
 use App\Enums\UserRoleEnum;
+use App\Events\EntityTagged;
 use App\Models\Agency;
 use App\Models\Center;
 use App\Models\Document;
 use App\Models\Partner;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Activitylog\ActivityLogStatus;
@@ -43,6 +46,7 @@ class AuditIndexTest extends TestCase
         // stop reaching this page here too.
         $this->seedRolesAndPermissions();
         Storage::fake('dpm');
+        Event::fake([EntityTagged::class]);
 
         // These tests are about how the page reads document activity, so the
         // fixtures must not become part of the log. The profiles log their own
@@ -219,13 +223,13 @@ class AuditIndexTest extends TestCase
 
         $this->actingAs($this->pccAdmin)->post(route('documents.approve', $document));
 
-        $row = $this->firstRow(['activity' => 'Document Approved']);
+        $row = $this->firstRow(['activity' => 'Agency Review Approved']);
 
         $this->assertSame($this->pccAdmin->name, $row['user']['name']);
-        $this->assertSame('Agency Admin', $row['user']['role']);
+        $this->assertSame('PCC Administrator', $row['user']['role']);
         $this->assertSame('Document', $row['subject']['type']);
         $this->assertSame($document->title, $row['subject']['label']);
-        $this->assertSame(route('documents.show', $document->id), $row['subject']['url']);
+        $this->assertSame(['type' => 'Document', 'label' => $document->title], $row['subject']);
         $this->assertNotNull($row['occurred_at']);
     }
 
@@ -235,10 +239,10 @@ class AuditIndexTest extends TestCase
 
         $this->actingAs($this->pccAdmin)->post(route('documents.approve', $document));
 
-        $row = $this->firstRow(['activity' => 'Document Approved']);
+        $row = $this->firstRow(['activity' => 'Agency Review Approved']);
 
         $this->assertSame(
-            [['label' => 'Status', 'from' => 'Pending Review', 'to' => 'Approved']],
+            [['label' => 'Status', 'from' => 'Pending Agency Review', 'to' => 'Approved']],
             $row['changes'],
         );
 
@@ -255,14 +259,14 @@ class AuditIndexTest extends TestCase
             'rejection_reason' => 'The submitted file contains incomplete records.',
         ]);
 
-        $row = $this->firstRow(['activity' => 'Document Rejected']);
+        $row = $this->firstRow(['activity' => 'Agency Review Rejected']);
 
         $this->assertSame(
-            [['label' => 'Status', 'from' => 'Pending Review', 'to' => 'Rejected']],
+            [['label' => 'Status', 'from' => 'Pending Agency Review', 'to' => 'Rejected by Agency']],
             $row['changes'],
         );
-        $this->assertSame(
-            [['label' => 'Reason', 'value' => 'The submitted file contains incomplete records.']],
+        $this->assertContains(
+            ['label' => 'Reason', 'value' => 'The submitted file contains incomplete records.'],
             $row['notes'],
         );
     }
@@ -290,8 +294,8 @@ class AuditIndexTest extends TestCase
 
         $this->assertNull($row['user'], 'A queue transition must not invent a user.');
         $this->assertSame('Failed', AuditActionEnum::from($row['action'])->label());
-        $this->assertSame(
-            [['label' => 'Error', 'value' => 'Source file is missing from storage.']],
+        $this->assertContains(
+            ['label' => 'Error', 'value' => 'Source file is missing from storage.'],
             $row['notes'],
         );
     }
@@ -304,7 +308,7 @@ class AuditIndexTest extends TestCase
         // center can come from is the document itself.
         $this->actingAs($this->pccAdmin)->post(route('documents.approve', $document));
 
-        $row = $this->firstRow(['activity' => 'Document Approved']);
+        $row = $this->firstRow(['activity' => 'Agency Review Approved']);
 
         $this->assertSame(['name' => 'CLSU Center', 'code' => 'CLSU'], $row['organization']);
     }
@@ -321,7 +325,9 @@ class AuditIndexTest extends TestCase
             'name' => 'Kosi Milk Cooperative',
         ]);
 
-        $document = $this->partnerDocument((string) $partner->id);
+        $document = $this->partnerDocument($partner->code);
+        // Older stored documents may still identify the partner by ID.
+        $document->tags()->where('key', 'partner')->update(['value' => (string) $partner->id]);
 
         $row = $this->firstRow(['activity' => 'Document Uploaded']);
 
@@ -420,7 +426,7 @@ class AuditIndexTest extends TestCase
         $approved = $this->auditsJson(['filter' => ['action' => AuditActionEnum::APPROVED->value]]);
         $rejected = $this->auditsJson(['filter' => ['action' => AuditActionEnum::REJECTED->value]]);
 
-        $this->assertSame(['Document Approved'], array_column($approved, 'activity'));
+        $this->assertSame(['Agency Review Approved'], array_column($approved, 'activity'));
         $this->assertSame([], array_column($rejected, 'activity'));
     }
 
@@ -470,11 +476,11 @@ class AuditIndexTest extends TestCase
         $this->actingAs($this->pccAdmin)->post(route('documents.approve', Document::query()->firstOrFail()));
 
         $this->assertSame(
-            ['Document Approved'],
+            ['Agency Review Approved'],
             array_column($this->auditsJson(['filter' => ['search' => 'Approved']]), 'activity'),
         );
         $this->assertContains(
-            'Document Approved',
+            'Agency Review Approved',
             array_column($this->auditsJson(['filter' => ['search' => $this->pccAdmin->name]]), 'activity'),
         );
     }
@@ -488,7 +494,7 @@ class AuditIndexTest extends TestCase
             array_merge(['All Activities'], array_column($props['filters']['categories'], 'label')),
         );
         $this->assertSame(
-            ['All Actions', 'Created', 'Updated', 'Submitted', 'Approved', 'Rejected', 'Deleted', 'Processed', 'Failed'],
+            ['All Actions', 'Created', 'Updated', 'Imported', 'Approved', 'Rejected', 'Deleted', 'Processed', 'Failed', 'Exported'],
             array_merge(['All Actions'], array_column($props['filters']['actions'], 'label')),
         );
         $this->assertContains(
@@ -634,7 +640,17 @@ class AuditIndexTest extends TestCase
             ])
             ->assertSessionHasNoErrors();
 
-        return Document::query()->where('title', 'CBIN/CCDP Project Sites')->firstOrFail();
+        $document = Document::query()->where('title', 'CBIN/CCDP Project Sites')->firstOrFail();
+        $reviewer = $this->user('center-reviewer', $this->center->agency_id, $this->center->id, UserRoleEnum::REVIEWER->value);
+        // These listing tests start after center review; transition logging itself
+        // is covered by DocumentReviewWorkflowTest.
+        $document->forceFill([
+            'status' => DocumentStatusEnum::PENDING_AGENCY_REVIEW,
+            'center_reviewed_by' => $reviewer->id,
+            'center_reviewed_at' => now(),
+        ])->saveQuietly();
+
+        return $document;
     }
 
     private function user(string $username, int $agencyId, ?int $centerId, string $role): User

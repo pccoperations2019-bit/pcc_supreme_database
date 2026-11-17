@@ -20,7 +20,7 @@ class TaskHistoryQuery
         $filters = $this->filtersFrom($request);
 
         return $this->query($filters, $viewer)
-            ->with(['center:id,name,code', 'completedBy:id,name', 'reviewedBy:id,name,roles'])
+            ->with(['center:id,name,code', 'completedBy:id,name', 'reviewedBy:id,name', 'reviewedBy.roles'])
             ->paginate($request->integer('per_page', 15))
             ->through(MonthlyTaskPresenter::describeList(...))
             ->withQueryString();
@@ -80,7 +80,7 @@ class TaskHistoryQuery
                 ? [$year, $month, $year, $month]
                 : [];
 
-            $query = SubmittedFigures::whereStatus(SubmittedFigures::join($query, ...$joinArgs), $derivedStatus);
+            $query = SubmittedFigures::whereStatus(SubmittedFigures::join($query, 'submitted', ...$joinArgs), $derivedStatus);
 
             $query->select('monthly_tasks.*');
         }

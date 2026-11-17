@@ -13,7 +13,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
-use Spatie\Permission\Models\Role;
+use Tests\Feature\Users\InteractsWithUsers;
 use Tests\TestCase;
 
 /**
@@ -23,6 +23,7 @@ use Tests\TestCase;
  */
 class DocumentDetailsTest extends TestCase
 {
+    use InteractsWithUsers;
     use RefreshDatabase;
 
     private Center $center;
@@ -35,8 +36,7 @@ class DocumentDetailsTest extends TestCase
     {
         parent::setUp();
 
-        Role::findOrCreate(UserRoleEnum::CENTER_ADMIN->value, 'web');
-        Role::findOrCreate(UserRoleEnum::AGENCY_ADMIN->value, 'web');
+        $this->seedRolesAndPermissions();
 
         Storage::fake('dpm');
 

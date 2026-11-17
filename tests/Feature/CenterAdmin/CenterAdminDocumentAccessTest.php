@@ -14,7 +14,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
-use Spatie\Permission\Models\Role;
+use Tests\Feature\Users\InteractsWithUsers;
 use Tests\TestCase;
 
 /**
@@ -26,6 +26,7 @@ use Tests\TestCase;
  */
 class CenterAdminDocumentAccessTest extends TestCase
 {
+    use InteractsWithUsers;
     use RefreshDatabase;
 
     private Center $ownCenter;
@@ -38,7 +39,7 @@ class CenterAdminDocumentAccessTest extends TestCase
     {
         parent::setUp();
 
-        Role::findOrCreate(UserRoleEnum::CENTER_ADMIN->value, 'web');
+        $this->seedRolesAndPermissions();
 
         // Uploading fires EntityTagged, whose listener registers a shutdown
         // handler that logs at PHP shutdown - fatal once the test container is

@@ -1,10 +1,14 @@
-name: Fix Code Style
+name: Code Style
 
 on: [push]
 
+permissions:
+  contents: read
+
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     strategy:
       fail-fast: true
       matrix:
@@ -12,16 +16,20 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@d52fc211a0436f8839a587b3b5b8efddab4744ea # v2
         with:
           php-version: ${{ matrix.php }}
-          tools: pint
+          extensions: bcmath, curl, dom, exif, fileinfo, gd, intl, mbstring, pdo_mysql, xml, zip
+          tools: composer:v2
+          coverage: none
 
-      - name: Run Pint
-        run: pint
+      - name: Install the locked development dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress --no-scripts
 
-      - name: Commit linted files
-        uses: stefanzweifel/git-auto-commit-action@v6
+      - name: Check PHP formatting
+        run: vendor/bin/pint --test

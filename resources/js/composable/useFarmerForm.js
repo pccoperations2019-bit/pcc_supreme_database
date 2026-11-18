@@ -151,6 +151,12 @@ export function boolField(val) {
   return val === null || val === undefined ? '' : val ? '1' : '0'
 }
 
+export function normalizeProjectCategory(value) {
+  if (value === null || value === undefined) return []
+  const list = Array.isArray(value) ? value : String(value).split(',')
+  return [...new Set(list.map(v => String(v ?? '').trim()).filter(Boolean))]
+}
+
 export function buildInitialFormState(farmer, defaultCenterId) {
   const centerId = farmer.center_id || defaultCenterId || farmer.center?.id || null
   const state = {
@@ -167,6 +173,7 @@ export function buildInitialFormState(farmer, defaultCenterId) {
     animal_inventory: normalizeAnimalInventory(farmer.animal_inventory),
   }
   TEXT_FIELDS.forEach(f => (state[f] = farmer[f] || ''))
+  state.project_category = normalizeProjectCategory(farmer.project_category)
   state.district = farmer.address?.district || ''
   DATE_FIELDS.forEach(f => (state[f] = farmer[f] ? farmer[f].split('T')[0] : ''))
   NUMBER_FIELDS.forEach(f => (state[f] = farmer[f] ?? ''))
@@ -189,6 +196,12 @@ export function buildFarmerFormData(form, { method, photoFile, addressLookups } 
 
   fd.append('center_id', form.center_id ? Number(form.center_id) : '')
   fd.append('partner_id', form.partner_id ?? '')
+  const projectCategories = normalizeProjectCategory(form.project_category)
+  if (projectCategories.length > 0) {
+    projectCategories.forEach((value, i) => fd.append(`project_category[${i}]`, value))
+  } else {
+    fd.append('project_category', '')
+  }
   if (form.project_ids && form.project_ids.length > 0) {
     form.project_ids.forEach((id, i) => fd.append(`project_ids[${i}]`, id))
   }

@@ -94,6 +94,9 @@ jobs:
       - name: Build production frontend assets
         run: npm run build
 
+      - name: Test frontend form behavior
+        run: npm run test:frontend
+
       - name: Run application tests against the disposable database
         run: composer test
 

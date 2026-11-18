@@ -263,6 +263,12 @@ const partnerOptions = computed(() => {
 
 const centerOptions = computed(() => props.centers.map(c => ({ value: c.id, label: c.name })))
 
+const projectCategoryItems = computed(() => {
+  const raw = isFormMode.value ? form.project_category : props.farmer.project_category
+  const list = Array.isArray(raw) ? raw : raw ? String(raw).split(',') : []
+  return [...new Set(list.map(v => String(v ?? '').trim()).filter(Boolean))]
+})
+
 watch(
   () => form.center_id,
   () => {
@@ -669,6 +675,21 @@ const handleUpdateDocument = async payload => {
                     }}
                   </dd>
                 </div>
+                <div class="grid grid-cols-2 gap-x-4">
+                  <dt class="text-muted-foreground font-medium">Project Category</dt>
+                  <dd class="font-medium">
+                    <div v-if="projectCategoryItems.length > 0" class="flex flex-wrap gap-1">
+                      <Badge
+                        v-for="category in projectCategoryItems"
+                        :key="category"
+                        variant="secondary"
+                      >
+                        {{ label(enums.projectCategory, category) }}
+                      </Badge>
+                    </div>
+                    <span v-else>N/A</span>
+                  </dd>
+                </div>
               </dl>
             </div>
 
@@ -854,6 +875,30 @@ const handleUpdateDocument = async payload => {
                 type="date"
                 @input="clearError('date_assisted')"
               />
+              <FormField
+                id="project_category"
+                label="Project Category"
+                :error="fieldErrors.project_category"
+              >
+                <Select
+                  v-model="form.project_category"
+                  multiple
+                  @update:model-value="clearError('project_category')"
+                >
+                  <SelectTrigger id="project_category" class="h-8 w-full">
+                    <SelectValue placeholder="Select project categories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem
+                      v-for="(optionLabel, optionValue) in props.enums.projectCategory"
+                      :key="optionValue"
+                      :value="optionValue"
+                    >
+                      {{ optionLabel }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormField>
               <FieldInput
                 id="purok_zone"
                 v-model="form.purok_zone"

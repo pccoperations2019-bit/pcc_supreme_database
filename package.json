@@ -5,6 +5,7 @@
     "scripts": {
         "build": "vite build",
         "dev": "vite",
+        "test:frontend": "node --test tests/Frontend/useFarmerForm.test.js",
         "lint": "eslint \"resources/js/**/*.{js,vue}\"",
         "lint:fix": "npm run lint -- --fix",
         "format": "prettier --write \"resources/js/**/*.{js,vue}\" \"resources/css/**/*.css\" --ignore-path .prettierignore",

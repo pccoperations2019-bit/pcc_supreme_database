@@ -96,6 +96,12 @@ const metadataSections = [
       },
       { id: 'registration_no', label: 'Registration No.', type: 'text' },
       { id: 'registration_date', label: 'Registration Date', type: 'date' },
+      {
+        id: 'partner_category',
+        label: 'Partner Category',
+        type: 'select',
+        options: enums?.categories || {},
+      },
     ],
   },
   {

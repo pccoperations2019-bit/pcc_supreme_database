@@ -31,6 +31,7 @@ import {
   defaultAnimalOwnership,
   normalizeAnimalOwnership,
   animalOwnershipPayload,
+  normalizeProjectCategory,
 } from '@/composable/useFarmerForm'
 import FarmInformationTab from '@/components/farmer/modal-tabs/FarmInformationTab.vue'
 import AnimalInventoryTab from '@/components/farmer/modal-tabs/AnimalInventoryTab.vue'
@@ -167,6 +168,7 @@ const form = useForm({
   household_size: '',
   contact_number: '',
   has_personal_cellphone: false,
+  project_category: [],
   purok_zone: '',
 
   // Address Information
@@ -654,6 +656,7 @@ watch(
         form.contact_number = farmer.contact_number || ''
         form.has_personal_cellphone =
           farmer.has_personal_cellphone === true || farmer.has_personal_cellphone === 1
+        form.project_category = normalizeProjectCategory(farmer.project_category)
         form.purok_zone = farmer.purok_zone || ''
 
         // Address Information
@@ -1081,6 +1084,23 @@ const submit = () => {
                 <Input v-model="form.contact_number" type="tel" />
               </div>
 
+              <div class="space-y-2">
+                <Label for="farmer-modal-project-category">Project Category</Label>
+                <Select v-model="form.project_category" multiple>
+                  <SelectTrigger id="farmer-modal-project-category"
+                    ><SelectValue placeholder="Select project categories"
+                  /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem
+                      v-for="(label, key) in enums.projectCategory"
+                      :key="key"
+                      :value="key"
+                    >
+                      {{ label }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div class="space-y-2">
                 <Label>Has Personal Cellphone</Label>
                 <Select v-model="form.has_personal_cellphone">

@@ -12,7 +12,7 @@ echo ================================================== >> storage\logs\queue_wo
 
 echo [%date% %time%] Starting queue worker... >> storage\logs\queue_worker.log
 
-"C:\laragon\bin\php\php-8.3.30-Win32-vs16-x64\php.exe" ^
+"C:\laragon\bin\php\php-8.4.27-nts-Win32-vs17-x64\php.exe" ^
     -d memory_limit=6144M ^
     artisan queue:work ^
     --sleep=0 ^

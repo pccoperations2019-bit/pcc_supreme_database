@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { Trash2 } from 'lucide-vue-next'
+import { Trash2, Plus } from 'lucide-vue-next'
 
 const props = defineProps({
   modelValue: {
@@ -37,6 +37,9 @@ const removeTrainingRecord = index => {
           <CardTitle class="text-base">Training Records</CardTitle>
           <CardDescription>Training conducted and participant information</CardDescription>
         </div>
+        <Button v-if="!isViewMode" type="button" variant="outline" size="sm" @click="emit('add')">
+          <Plus class="h-4 w-4" /> Add Training Record
+        </Button>
       </div>
     </CardHeader>
     <CardContent>

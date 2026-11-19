@@ -116,7 +116,7 @@ backup and a protected off-server copy before recovery can be considered ready.
 Reference: https://dev.mysql.com/doc/refman/8.0/en/mysqldump.html
 Reference: https://dev.mysql.com/doc/refman/8.0/en/option-file-options.html
 
-Isolated restore rehearsal (connection-only passed; full import ready)
+Isolated restore rehearsal (completed and verified)
 On 2026-11-19 the first rehearsal failed at start-isolated-server before any
 application database import. The MySQL log reported ready for connections,
 but the PDO exception code had been discarded. The connection cause is still
@@ -159,6 +159,12 @@ DEFINER='root'@'localhost' on the restored view had no matching user during
 CHECK TABLE QUICK. Run-IsolatedDatabaseRestore.php now also creates a locked
 root@localhost definer account in the isolated test instance only, and records
 restoredBaseTableCount, restoredViewCount, and failedObjectType diagnostics.
+The full isolated restore rehearsal completed on 2026-11-19 at 16:46:10-16:49:09
+Manila (08:46:10-08:49:09 UTC, restore-test-bf5b2980506f4331be69b613afb9f142):
+status=isolated-database-restore-passed, restoreVerified=true,
+restoredBaseTableCount=78, restoredViewCount=1, objectChecksPassed=79,
+importExitCode=0, testLauncherStopped=true, testServerStopped=true,
+applicationRecoveryVerified=false, activationAllowed=false.
 
 The maintainer selected a temporary separate MySQL instance on the same server.
 Test-ProductionDatabaseRestore.ps1 requires an explicit -RunIsolatedRestore

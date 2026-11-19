@@ -66,7 +66,41 @@ Verified current state
   and freshness are unconfirmed; it is not verified as a current production
   recovery backup. Do not classify it as development-only from its location.
   Its 77 InnoDB/1 MyISAM definitions describe that dump, not necessarily the
-  live database. No import or production database query was performed.
+  live database. No import was performed.
+- Read-only live metadata subsequently verified MySQL 8.0.40, pcc on
+  127.0.0.1:3306, 78 InnoDB base tables, one view, GTID OFF. Existing app
+  credentials authenticate as root@localhost; no credentials or business
+  records were printed. This is the inspected file-based connection, not proof
+  of every running process's environment. No fresh export or restore yet.
+
+Fresh database backup preparation
+New-ProductionDatabaseBackup.ps1 is a Windows PowerShell 5.1 administrator
+procedure, not a GitHub job or deployment-account capability. It copies the
+reviewed PHP helper into a unique protected backup directory before execution.
+SYSTEM/Administrators alone receive access to C:\ProgramData\SUPREME-Backups.
+Existing directories with unexpected permissions are rejected, not repaired.
+The fixed live configuration hash, database target, server version and InnoDB
+metadata are rechecked. mysqldump 8.0.40 uses single-transaction/quick with no
+table locks and exports triggers/routines/events as well as tables and views.
+No application restart, migration, import or Git remote change is performed.
+
+Coordinate no schema/DDL changes during the export; pass
+-NoSchemaChangesConfirmed only when that condition is satisfied. This online
+export adds read/I/O load. It is not a synchronized application/upload snapshot.
+Credentials exist briefly in an administrator-only option file, never in the
+command line. A child-only MYSQL_TEST_LOGIN_FILE excludes unrelated login-path
+settings. Temporary credentials are removed on normal/failure completion;
+after a forced process kill or server crash, an administrator must check for
+and remove any leftover mysql-client.cnf inside the exact backup directory.
+SQL and diagnostic logs stay on the server and must not be posted or committed.
+The report records time, byte size, SHA256 and export exit status, explicitly
+restoreVerified=false and activationAllowed=false. Failed partial dumps remain
+protected for diagnosis and are not treated as recovery backups. A successful
+export still needs an isolated restore test, a current application/upload
+backup and a protected off-server copy before recovery can be considered ready.
+
+Reference: https://dev.mysql.com/doc/refman/8.0/en/mysqldump.html
+Reference: https://dev.mysql.com/doc/refman/8.0/en/option-file-options.html
 
 Files prepared
 scripts/deployment/New-Release.ps1

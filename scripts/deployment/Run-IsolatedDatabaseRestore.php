@@ -61,7 +61,9 @@ try {
     mkdir($directory.'/tmp');
     $password = bin2hex(random_bytes(32));
     $write('client.cnf', "[client]\nprotocol=TCP\nhost=127.0.0.1\nport=13306\nuser=root\npassword=\"{$password}\"\n");
-    $write('init.sql', "ALTER USER 'root'@'localhost' IDENTIFIED BY '{$password}';\n");
+    // With skip-name-resolve, loopback TCP must match an IP-based account.
+    // Rename only the root account in this freshly initialized test instance.
+    $write('init.sql', "ALTER USER 'root'@'localhost' IDENTIFIED BY '{$password}';\nRENAME USER 'root'@'localhost' TO 'root'@'127.0.0.1';\n");
     $write('server.ini', implode("\n", [
         '[mysqld]', "basedir={$base}", "datadir={$directory}/data", "tmpdir={$directory}/tmp",
         "pid-file={$directory}/test.pid", "log-error={$directory}/server.error.log",
@@ -108,7 +110,7 @@ try {
     if (trim(file_get_contents($directory.'/test.pid')) !== (string) $report['testServerPid']) {
         throw new RuntimeException('Test server PID is not the owned single-process launcher.');
     }
-    $readIdentity = static fn (): array => $pdo->query('SELECT VERSION() AS version, @@port AS port, @@datadir AS data_directory, @@bind_address AS bind_address, @@event_scheduler AS event_scheduler, @@local_infile AS local_infile, @@secure_file_priv AS secure_file_priv, @@log_bin AS log_bin, @@named_pipe AS named_pipe, @@shared_memory AS shared_memory')->fetch(PDO::FETCH_ASSOC);
+    $readIdentity = static fn (): array => $pdo->query('SELECT VERSION() AS version, CURRENT_USER() AS authenticated_account, @@port AS port, @@datadir AS data_directory, @@bind_address AS bind_address, @@event_scheduler AS event_scheduler, @@local_infile AS local_infile, @@secure_file_priv AS secure_file_priv, @@log_bin AS log_bin, @@named_pipe AS named_pipe, @@shared_memory AS shared_memory')->fetch(PDO::FETCH_ASSOC);
     assertRestoreTestIdentity($readIdentity(), $directory);
     $identityVerified = true;
     unlink($directory.'/init.sql');

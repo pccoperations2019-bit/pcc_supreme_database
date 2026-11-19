@@ -134,7 +134,14 @@ The next run must use -RunIsolatedRestore -ConnectionOnly: it initializes a NEW
 test instance, records only SQLSTATE/numeric driver codes on connection failure,
 verifies identity if connected, then attempts shutdown. It never creates or
 imports the pcc application database and never marks the restore verified.
-Actual Windows runtime verification of this repair remains pending.
+The connection-only run on 2026-11-19 at 15:07 Manila returned HY000/1130
+(host not allowed) and independently verified shutdown. The test configuration
+used skip-name-resolve with root@localhost, while the TCP client used 127.0.0.1.
+The revised protected init file sets the random password then renames only the
+fresh test instance's root account to root@127.0.0.1. Connected identity checks
+also require CURRENT_USER() to match that exact account. No live account changes
+are involved. A new connection-only run must verify this repair before import.
+Reference: https://dev.mysql.com/doc/refman/8.0/en/server-system-variables.html#sysvar_skip_name_resolve
 
 The maintainer selected a temporary separate MySQL instance on the same server.
 Test-ProductionDatabaseRestore.ps1 requires an explicit -RunIsolatedRestore

@@ -21,7 +21,7 @@ final class RestoreDatabaseSafetyTest extends TestCase
     public function test_live_database_and_incorrect_isolation_settings_are_rejected(): void
     {
         foreach ([
-            'version' => '8.0.45', 'port' => 3306,
+            'version' => '8.0.45', 'port' => 3306, 'authenticated_account' => 'root@localhost',
             'data_directory' => 'C:/laragon/data/mysql', 'bind_address' => '0.0.0.0',
             'event_scheduler' => 'ON', 'local_infile' => 1, 'secure_file_priv' => '',
             'log_bin' => 1, 'named_pipe' => 1, 'shared_memory' => 1,
@@ -54,7 +54,7 @@ final class RestoreDatabaseSafetyTest extends TestCase
     private function identity(): array
     {
         return [
-            'version' => '8.0.40', 'port' => 13306, 'data_directory' => self::DIRECTORY.'/data/',
+            'version' => '8.0.40', 'port' => 13306, 'authenticated_account' => 'root@127.0.0.1', 'data_directory' => self::DIRECTORY.'/data/',
             'bind_address' => '127.0.0.1', 'event_scheduler' => 'DISABLED', 'local_infile' => 0,
             'secure_file_priv' => null, 'log_bin' => 0, 'named_pipe' => 0, 'shared_memory' => 0,
         ];

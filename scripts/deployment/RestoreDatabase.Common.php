@@ -26,6 +26,7 @@ function assertRestoreTestIdentity(array $identity, string $directory): void
     assertRestoreTestDirectory($directory);
     $dataPath = strtolower(rtrim(str_replace('\\', '/', $identity['data_directory']), '/'));
     if ($identity['version'] !== '8.0.40' || (string) $identity['port'] !== '13306'
+        || ($identity['authenticated_account'] ?? null) !== 'root@127.0.0.1'
         || $dataPath !== strtolower($directory.'/data')
         || $identity['bind_address'] !== '127.0.0.1' || $identity['event_scheduler'] !== 'DISABLED'
         || (string) $identity['local_infile'] !== '0' || $identity['secure_file_priv'] !== null

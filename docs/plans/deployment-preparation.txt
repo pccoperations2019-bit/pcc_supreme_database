@@ -1,0 +1,141 @@
+SUPREME deployment preparation - 19 November 2026
+
+Purpose
+Prepare tested release candidates and isolated server staging while the
+GitHub-hosted runner's approved private-network connection is pending.
+This preparation does NOT implement or enable production activation.
+
+Verified current state
+- SSH login from the maintainer computer succeeds as supreme_deploy, using
+  a dedicated key and a pinned server host key.
+- sshd is automatic and running on 192.168.146.11:22. The configured firewall
+  rule currently allows source 192.168.147.211 only.
+- PHP 8.4.27 exists and runs at:
+  C:\laragon\bin\php\php-8.4.27-nts-Win32-vs17-x64\php.exe
+- SSH's default PATH resolves PHP 8.3.30. Deployment uses the explicit 8.4 path;
+  no machine PATH or existing process is changed by this preparation.
+- Composer PHAR exists at C:\ProgramData\ComposerSetup\bin\composer.phar.
+- The current scheduler.bat still refers to PHP 8.3.30. Worker/scheduler
+  ownership, supervision and restart procedure require elevated inspection.
+- The deployment account cannot query Win32_Process. Do not expand its system
+  privileges just for inspection; use the maintainer's elevated RDP session.
+- Production Git remote remains outsoarph/supreme-cbed-poc. Do not git pull,
+  reset or clean the live folder. Its history differs from the maintained repo.
+- Node/npm were not found on the deployment account's PATH; browser/PDF
+  dependencies must be verified under the eventual application identities.
+
+Files prepared
+scripts/deployment/New-Release.ps1
+  Packages only tracked application source plus the built public/build assets.
+  Refuses dirty tracked source or a different commit. Excludes .env, SQL dumps,
+  uploads, storage, vendor, node_modules, .git and Windows launcher scripts.
+  Writes a ZIP, SHA256 sidecar and per-file manifest. These are release
+  candidates, not independently signed artifacts or deployable installations.
+
+scripts/deployment/Initialize-DeploymentServer.ps1
+  One-time administrator setup on 192.168.146.11. Creates a NEW directory:
+  C:\ProgramData\SUPREME-Deploy
+  Refuses to replace an existing directory. SYSTEM/Administrators control the
+  root and controller. supreme_deploy gets read/execute there and Modify only
+  on incoming and staging. No live application ACL, SSH setting, Git remote,
+  service, scheduled task, database or environment file is changed.
+
+scripts/deployment/Stage-Release.ps1
+  Verifies SHA256, repository, full commit, manifest and every file. Rejects
+  unsafe/duplicate ZIP paths, links and oversized archives. Uses a staging
+  lock and never overwrites an existing release. Compares migration source
+  hashes without querying the database. Writes a stage-report.json with
+  activationAllowed=false. Does not install dependencies, run Artisan,
+  change live code, apply migrations or restart workers.
+  A failed partial extraction stays in its unique staging directory for
+  inspection; it is never treated as successfully staged or auto-deleted.
+
+scripts/deployment/Get-DeploymentReadiness.ps1
+  Reads the protected server config, checks explicit PHP 8.4 and extensions,
+  records presence of environment and dependencies without reading secrets.
+
+.github/workflows/ci.yml
+  After application tests and deployment-tool tests pass, main push builds
+  produce release-<full SHA> artifacts. PHP/vendor and Node production
+  dependencies still need Windows staging preparation. Artifact creation is
+  not deployment approval: all required checks for that exact SHA must pass.
+
+.github/workflows/deployment-tools.yml
+  Tests packaging/staging with disposable fixtures on Linux PowerShell 7 and
+  Windows PowerShell 7/5.1. No real database or production access is involved.
+
+.github/workflows/production-readiness.yml
+  Manual main-branch-only connection/readiness probe in environment production.
+  It fails closed while PROD_PRIVATE_NETWORK_READY is not true. A reviewed
+  provider-specific network connection step MUST be implemented first. Setting
+  a variable alone does not establish connectivity. This workflow cannot deploy.
+
+Administrator setup after review
+1. Copy the complete scripts/deployment directory into a temporary setup folder
+   on the server. Review its files; do not download and execute an unreviewed
+   script automatically. Keep the existing RDP session available.
+2. Run Initialize-DeploymentServer.ps1 in Administrator PowerShell.
+   If local unsigned scripts are blocked and no organizational policy forbids
+   them, use a process-only RemoteSigned invocation. Do not weaken machine or
+   domain execution policy. Follow organizational signing policy when required.
+3. From the deployment SSH account, run the installed readiness script.
+4. Verify controller files are read-only to supreme_deploy and incoming/staging
+   are writable. A previous partial setup requires inspection, not blind rerun.
+5. Keep live-folder permissions unchanged until the activation/recovery design
+   and worker supervision are verified. Staging permissions are sufficient now.
+
+GitHub settings (repository admin required)
+- Create environment production; restrict it to main and require a reviewer
+  for the initial supervised rollout where the repository plan supports it.
+- Environment variables:
+    PROD_PRIVATE_NETWORK_READY=false
+    PROD_SSH_HOST=192.168.146.11
+    PROD_SSH_PORT=22
+    PROD_SSH_USER=supreme_deploy
+- Environment secrets, provisioned securely after connection design is approved:
+    PROD_SSH_PRIVATE_KEY: the dedicated client private key (never commit it)
+    PROD_SSH_KNOWN_HOSTS: the verified host-key line (no ssh-keyscan trust-on-first-use)
+- Add the network provider's own secrets/settings only after IT approves the
+  provider and unattended authentication method. Firewall source addresses
+  must match what the server actually sees from that connection.
+- Keep fork/PR jobs without production secrets or private-network access.
+- Configure branch protection/required checks before enabling unattended CD.
+
+Isolated staging once an artifact and server workspace exist
+1. Download release-<SHA> from a successful Application CI MAIN PUSH run.
+2. Verify Code Style, Deployment Tools, Context Validation and Application CI
+   succeeded for the same SHA. Context Validation currently has only placeholder
+   checks; do not treat it as a substantive security test. Verify main ancestry
+   and release ordering before any future activation.
+3. Transfer its ZIP over pinned-host SFTP to SUPREME-Deploy/incoming.
+4. Invoke the protected Stage-Release.ps1 with explicit ArchivePath, full
+   Commit and SHA256 from that authenticated artifact. Do not run scripts
+   supplied inside an uploaded application archive.
+5. Review stage-report.json. Successful staging is not a live deployment.
+
+Remaining before first production activation
+- Approved GitHub runner route and successful Production Readiness workflow.
+- Confirm application backup, separate consistent MySQL backup, protected
+  storage location, recovery ownership and a rehearsed recovery procedure.
+- Identify web-server/PHP/queue/scheduler identities and supervision. Inspect
+  active work before planning downtime or worker restart. Preserve uploads,
+  production .env and APP_KEY. Do not run the scheduled storage cleanup.
+- Prepare locked Windows PHP dependencies in an isolated stage with the
+  explicit PHP executable; validate composer platform requirements. Review
+  dependency scripts before running them and avoid staging access to production
+  services. Verify Node/Puppeteer/browser/PDF exports in the correct identity.
+- Investigate migration differences and actual schema history separately;
+  any production database mutation needs its own reviewed procedure/approval.
+- Implement and rehearse activation and recovery around the verified process
+  setup. First release must be supervised; do not fabricate a generic worker
+  restart, directory swap, git pull or database rollback.
+- Add the activation job gated on ALL required checks for the same SHA, safe
+  concurrency, environment policy, migration review, health checks and recovery.
+  Protect against stale/duplicate releases. Only then enable automatic CD.
+
+Recovery for this preparation
+The initializer changes only a new deployment workspace. If setup fails, leave
+it in place and inspect ACLs/files. No live application recovery is necessary
+because initialization and staging do not modify the live application. Retire
+the workspace only after confirming no staging operation is active and resolving
+the exact path. Do not delete any app, database, uploaded data or SSH keys.

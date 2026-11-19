@@ -107,3 +107,24 @@ jobs:
           path: public/build/
           if-no-files-found: error
           retention-days: 7
+
+      - name: Test release packaging and staging
+        shell: pwsh
+        run: ./tests/Deployment/release.test.ps1
+
+      - name: Package application source and tested frontend assets
+        shell: pwsh
+        env:
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: |
+          ./scripts/deployment/New-Release.ps1 -RepositoryPath $PWD.Path `
+            -OutputDirectory "$env:RUNNER_TEMP/supreme-release" -Commit $env:RELEASE_COMMIT
+
+      - name: Save release candidate for isolated staging
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-${{ github.sha }}
+          path: ${{ runner.temp }}/supreme-release/*
+          if-no-files-found: error
+          retention-days: 14

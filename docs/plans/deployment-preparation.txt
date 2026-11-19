@@ -45,8 +45,9 @@ Verified current state
   main is allowed, ajeonsu is the required reviewer, and self-review is allowed
   for the initial maintainer-supervised rollout. Network readiness remains
   false. Host/port/user variables are configured; no environment secrets exist.
-- The maintainer confirms no approved runner network method yet and is unsure
-  whether application/MySQL backups exist. Neither prerequisite is verified.
+- The maintainer confirms no approved runner network method yet. A fresh MySQL
+  export has now completed (see below); application backup/recovery verification
+  and the runner connection are still pending.
 - Administrator inventory found the web/PHP/MySQL processes under the
   Administrator interactive session, with queue/scheduler wrappers as SYSTEM.
   The matching MySQL80 service is stopped while Laragon MySQL processes run;
@@ -55,8 +56,8 @@ Verified current state
   18 November 2026 09:06 Asia/Manila). ZIP directory metadata shows .env,
   storage files and one SQL entry. That entry is the 108-byte Laravel Sail
   vendor/laravel/sail/database/pgsql/create-testing-database.sql script, not
-  a production database dump. No MySQL backup has been verified. Archive
-  contents/integrity and restore are NOT verified. Keep backup contents off
+  a production database dump. Archive contents/integrity and restore are NOT
+  verified. Keep backup contents off
   GitHub/chat.
 - The local database/supreme_db_backup-v14 2.sql is a 59247364-byte HeidiSQL
   MySQL 8.0.45 dump with 78 CREATE TABLE statements and data inserts. It is
@@ -71,7 +72,20 @@ Verified current state
   127.0.0.1:3306, 78 InnoDB base tables, one view, GTID OFF. Existing app
   credentials authenticate as root@localhost; no credentials or business
   records were printed. This is the inspected file-based connection, not proof
-  of every running process's environment. No fresh export or restore yet.
+  of every running process's environment.
+- The administrator ran New-ProductionDatabaseBackup.ps1 and supplied its
+  successful completion report: 19 November 2026, 14:36:36-14:36:56 Asia/Manila
+  (06:36:36-06:36:56 UTC), mysqldump exit 0, 55275500 bytes. The wrapper completed
+  the file hash check and protected-directory ACL check. Backup directory:
+  C:\ProgramData\SUPREME-Backups\database-20261119T063634Z-d27d18a1102c4a978e5d3ae5158d9eff
+  File: pcc.sql
+  SHA256: 94466dbf798dfb9f405a81254b33e8ba43f0482c6b36599beba9dc297bd20126
+  This establishes a completed export/hash check, not a tested restoration.
+  restoreVerified=false and activationAllowed=false. No SQL contents were
+  transmitted to chat/GitHub. No import, migration or activation was performed.
+- PR commit d5f790a passed Application CI, Code Style, Context Validation and
+  Deployment Tools on Windows/Linux. Rector still reports two existing
+  application files needing changes; it remains enabled and the PR stays draft.
 
 Fresh database backup preparation
 New-ProductionDatabaseBackup.ps1 is a Windows PowerShell 5.1 administrator

@@ -28,7 +28,14 @@ Verified current state
   not grant access to the Administrator profile or change machine PATH.
 - The administrator installed the staging workspace, and deployment-account
   read-only controller ACLs plus staging/incoming create/delete were verified.
+- The pinned Node 22.23.0/npm 10.9.8 runtime was installed by the administrator
+  and verified through SSH as supreme_deploy. Runtime/config ACLs remain
+  read/execute only for that account. Default PATH is intentionally unchanged.
 - Browser/PDF behavior still needs verification under application identities.
+- Repository access was rechecked: the connected account has push access but
+  not admin access, and no GitHub deployment environments exist yet.
+- The maintainer confirms no approved runner network method yet and is unsure
+  whether application/MySQL backups exist. Neither prerequisite is verified.
 
 Files prepared
 scripts/deployment/New-Release.ps1
@@ -59,6 +66,14 @@ scripts/deployment/Stage-Release.ps1
 scripts/deployment/Get-DeploymentReadiness.ps1
   Reads the protected server config, checks explicit PHP 8.4 and extensions,
   records presence of environment and dependencies without reading secrets.
+
+scripts/deployment/Get-ProductionOperations.ps1
+  Read-only administrator inventory of relevant process identities, matching
+  services/tasks, fixed-disk capacity and backup file candidates in conventional
+  top-level directories. Classifies command lines without printing them. Does
+  not run application commands, query the database or change server state.
+  Candidate backup files are not proof of consistent or recoverable backups;
+  an empty candidate list is not proof that no backups exist elsewhere.
 
 scripts/deployment/Install-DeploymentNode.ps1
   Administrator-only, one-time copy of existing Node 22.23.0 and its bundled

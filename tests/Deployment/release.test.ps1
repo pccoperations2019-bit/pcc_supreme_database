@@ -158,3 +158,6 @@ try {
         Remove-Item -LiteralPath $resolvedTestRoot -Recurse -Force
     } else { throw 'Refusing cleanup outside the disposable test directory.' }
 }
+# The dirty-source negative test intentionally leaves git diff's native exit
+# code at 1. Report success only after all assertions and cleanup complete.
+exit 0

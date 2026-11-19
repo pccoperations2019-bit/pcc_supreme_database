@@ -33,7 +33,8 @@ function findRestoreTestIdentityMismatches(array $identity, string $directory): 
         'bind_address' => ($identity['bind_address'] ?? null) === '127.0.0.1',
         'event_scheduler' => ($identity['event_scheduler'] ?? null) === 'DISABLED',
         'local_infile' => (string) ($identity['local_infile'] ?? '') === '0',
-        'secure_file_priv' => array_key_exists('secure_file_priv', $identity) && $identity['secure_file_priv'] === null,
+        'secure_file_priv' => array_key_exists('secure_file_priv', $identity)
+            && ($identity['secure_file_priv'] === null || $identity['secure_file_priv'] === 'NULL'),
         'log_bin' => (string) ($identity['log_bin'] ?? '') === '0',
         'named_pipe' => (string) ($identity['named_pipe'] ?? '') === '0',
         'shared_memory' => (string) ($identity['shared_memory'] ?? '') === '0',

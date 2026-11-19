@@ -15,7 +15,12 @@ final class RestoreDatabaseSafetyTest extends TestCase
         $identity = $this->identity();
         $identity['data_directory'] = str_replace('/', '\\', strtolower(self::DIRECTORY)).'\\data\\';
         assertRestoreTestIdentity($identity, self::DIRECTORY);
-        $this->addToAssertionCount(1);
+
+        $stringNullIdentity = $this->identity();
+        $stringNullIdentity['secure_file_priv'] = 'NULL';
+        assertRestoreTestIdentity($stringNullIdentity, self::DIRECTORY);
+
+        $this->addToAssertionCount(2);
     }
 
     public function test_live_database_and_incorrect_isolation_settings_are_rejected(): void
@@ -37,6 +42,10 @@ final class RestoreDatabaseSafetyTest extends TestCase
             }
             $this->assertTrue($rejected, 'Unexpected server identity accepted: '.$key);
         }
+
+        $dirSecurePriv = $this->identity();
+        $dirSecurePriv['secure_file_priv'] = 'C:/laragon/tmp';
+        $this->assertSame(['secure_file_priv'], findRestoreTestIdentityMismatches($dirSecurePriv, self::DIRECTORY));
     }
 
     public function test_paths_outside_fresh_restore_workspace_are_rejected(): void

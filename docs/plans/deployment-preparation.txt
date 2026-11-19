@@ -140,8 +140,14 @@ used skip-name-resolve with root@localhost, while the TCP client used 127.0.0.1.
 The revised protected init file sets the random password then renames only the
 fresh test instance's root account to root@127.0.0.1. Connected identity checks
 also require CURRENT_USER() to match that exact account. No live account changes
-are involved. A new connection-only run must verify this repair before import.
+are involved.
 Reference: https://dev.mysql.com/doc/refman/8.0/en/server-system-variables.html#sysvar_skip_name_resolve
+Subsequent connection-only runs at 15:52 and 16:24 Manila connected and shut
+down cleanly, identifying only secure_file_priv because MySQL 8.0.40 configured
+with secure-file-priv=NULL reports the literal string 'NULL' via @@secure_file_priv
+rather than SQL NULL. RestoreDatabase.Common.php now accepts either null or 'NULL'
+while continuing to reject empty strings and directory paths. A new connection-only
+run must verify this repair before import.
 
 The maintainer selected a temporary separate MySQL instance on the same server.
 Test-ProductionDatabaseRestore.ps1 requires an explicit -RunIsolatedRestore

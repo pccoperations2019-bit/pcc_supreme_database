@@ -15,8 +15,16 @@ Verified current state
 - SSH's default PATH resolves PHP 8.3.30. Deployment uses the explicit 8.4 path;
   no machine PATH or existing process is changed by this preparation.
 - Composer PHAR exists at C:\ProgramData\ComposerSetup\bin\composer.phar.
-- The current scheduler.bat still refers to PHP 8.3.30. Worker/scheduler
-  ownership, supervision and restart procedure require elevated inspection.
+- The current scheduler.bat still refers to PHP 8.3.30. Administrator inventory
+  identified NSSM services LaravelQueueListener and LaravelQueueListener2,
+  both running as LocalSystem and launching the live queue-listen.bat through
+  cmd.exe. StorageCleanupScheduler also runs as LocalSystem and launches the
+  live scheduler.bat. All three are automatic/running in the observed snapshot.
+  Read-only registry inspection verified their application working directory.
+  No explicit AppStopMethodSkip/Console/Window/Threads, AppKillProcessTree or
+  AppRestartDelay values were present; do not assume a verified graceful drain.
+  Windows service Schedule is the system Task Scheduler, not an application
+  service to stop. Application stop/start and recovery remain unrehearsed.
 - The deployment account cannot query Win32_Process. Do not expand its system
   privileges just for inspection; use the maintainer's elevated RDP session.
 - Production Git remote remains outsoarph/supreme-cbed-poc. Do not git pull,
@@ -50,6 +58,15 @@ Verified current state
   a production database dump. No MySQL backup has been verified. Archive
   contents/integrity and restore are NOT verified. Keep backup contents off
   GitHub/chat.
+- The local database/supreme_db_backup-v14 2.sql is a 59247364-byte HeidiSQL
+  MySQL 8.0.45 dump with 78 CREATE TABLE statements and data inserts. It is
+  ignored by Git. It came from the developer handover/local copy; the maintainer
+  reports the developer described it as a physical backup of the system. It
+  may be a historical production snapshot. Its original server, export date
+  and freshness are unconfirmed; it is not verified as a current production
+  recovery backup. Do not classify it as development-only from its location.
+  Its 77 InnoDB/1 MyISAM definitions describe that dump, not necessarily the
+  live database. No import or production database query was performed.
 
 Files prepared
 scripts/deployment/New-Release.ps1

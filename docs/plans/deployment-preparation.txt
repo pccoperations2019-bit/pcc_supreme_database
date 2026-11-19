@@ -116,7 +116,7 @@ backup and a protected off-server copy before recovery can be considered ready.
 Reference: https://dev.mysql.com/doc/refman/8.0/en/mysqldump.html
 Reference: https://dev.mysql.com/doc/refman/8.0/en/option-file-options.html
 
-Isolated restore rehearsal (first attempt failed; repair awaiting verification)
+Isolated restore rehearsal (connection-only passed; full import ready)
 On 2026-11-19 the first rehearsal failed at start-isolated-server before any
 application database import. The MySQL log reported ready for connections,
 but the PDO exception code had been discarded. The connection cause is still
@@ -146,8 +146,19 @@ Subsequent connection-only runs at 15:52 and 16:24 Manila connected and shut
 down cleanly, identifying only secure_file_priv because MySQL 8.0.40 configured
 with secure-file-priv=NULL reports the literal string 'NULL' via @@secure_file_priv
 rather than SQL NULL. RestoreDatabase.Common.php now accepts either null or 'NULL'
-while continuing to reject empty strings and directory paths. A new connection-only
-run must verify this repair before import.
+while continuing to reject empty strings and directory paths.
+The connection-only run on 2026-11-19 at 16:31:52-16:32:01 Manila (08:31:52-
+08:32:01 UTC, restore-test-eadbe0c321c24d2ea5855a6f5b7f67e7) succeeded with
+status=isolated-connection-passed, connectionVerified=true, testLauncherStopped=true,
+and testServerStopped=true.
+The full import rehearsal at 16:34:57-16:38:06 Manila (08:34:57-08:38:06 UTC,
+restore-test-839c10400d8c4e19b481a591172f2689) completed the pcc.sql import and
+shut down cleanly (testServerStopped=true), stopping at check-restored-objects.
+Because the isolated init script renamed root@localhost to root@127.0.0.1, the
+DEFINER='root'@'localhost' on the restored view had no matching user during
+CHECK TABLE QUICK. Run-IsolatedDatabaseRestore.php now also creates a locked
+root@localhost definer account in the isolated test instance only, and records
+restoredBaseTableCount, restoredViewCount, and failedObjectType diagnostics.
 
 The maintainer selected a temporary separate MySQL instance on the same server.
 Test-ProductionDatabaseRestore.ps1 requires an explicit -RunIsolatedRestore

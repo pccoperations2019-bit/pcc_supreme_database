@@ -62,8 +62,15 @@ try {
     $password = bin2hex(random_bytes(32));
     $write('client.cnf', "[client]\nprotocol=TCP\nhost=127.0.0.1\nport=13306\nuser=root\npassword=\"{$password}\"\n");
     // With skip-name-resolve, loopback TCP must match an IP-based account.
-    // Rename only the root account in this freshly initialized test instance.
-    $write('init.sql', "ALTER USER 'root'@'localhost' IDENTIFIED BY '{$password}';\nRENAME USER 'root'@'localhost' TO 'root'@'127.0.0.1';\n");
+    // Rename the active account to 127.0.0.1 and keep a locked root@localhost
+    // account so DEFINER='root'@'localhost' views/routines pass object checks.
+    $write('init.sql', implode("\n", [
+        "ALTER USER 'root'@'localhost' IDENTIFIED BY '{$password}';",
+        "RENAME USER 'root'@'localhost' TO 'root'@'127.0.0.1';",
+        "CREATE USER 'root'@'localhost' IDENTIFIED BY '{$password}' ACCOUNT LOCK;",
+        "GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION;",
+        '',
+    ]));
     $write('server.ini', implode("\n", [
         '[mysqld]', "basedir={$base}", "datadir={$directory}/data", "tmpdir={$directory}/tmp",
         "pid-file={$directory}/test.pid", "log-error={$directory}/server.error.log",
@@ -144,6 +151,8 @@ try {
         $tables = $pdo->query("SELECT TABLE_NAME, TABLE_TYPE, ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA='pcc'")->fetchAll(PDO::FETCH_ASSOC);
         $baseTables = array_filter($tables, static fn (array $table): bool => $table['TABLE_TYPE'] === 'BASE TABLE' && $table['ENGINE'] === 'InnoDB');
         $views = array_filter($tables, static fn (array $table): bool => $table['TABLE_TYPE'] === 'VIEW');
+        $report['restoredBaseTableCount'] = count($baseTables);
+        $report['restoredViewCount'] = count($views);
         if (count($tables) !== 79 || count($baseTables) !== 78 || count($views) !== 1) {
             throw new RuntimeException('Restored table/view metadata does not match the export.');
         }
@@ -153,11 +162,13 @@ try {
             $ok = false;
             foreach ($rows as $row) {
                 if ($row['Msg_type'] === 'error') {
+                    $report['failedObjectType'] = $table['TABLE_TYPE'];
                     throw new RuntimeException('Restored object check failed.');
                 }
                 $ok = $ok || ($row['Msg_type'] === 'status' && $row['Msg_text'] === 'OK');
             }
             if (! $ok) {
+                $report['failedObjectType'] = $table['TABLE_TYPE'];
                 throw new RuntimeException('Restored object check did not report OK.');
             }
         }

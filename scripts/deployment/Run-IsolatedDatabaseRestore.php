@@ -107,12 +107,22 @@ try {
     } while (true);
     unset($password);
     $phase = 'verify-isolated-server-identity';
-    if (trim(file_get_contents($directory.'/test.pid')) !== (string) $report['testServerPid']) {
+    if (trim((string) file_get_contents($directory.'/test.pid')) !== (string) $report['testServerPid']) {
+        $report['identityMismatches'] = ['pid_file'];
         throw new RuntimeException('Test server PID is not the owned single-process launcher.');
     }
     $readIdentity = static fn (): array => $pdo->query('SELECT VERSION() AS version, CURRENT_USER() AS authenticated_account, @@port AS port, @@datadir AS data_directory, @@bind_address AS bind_address, @@event_scheduler AS event_scheduler, @@local_infile AS local_infile, @@secure_file_priv AS secure_file_priv, @@log_bin AS log_bin, @@named_pipe AS named_pipe, @@shared_memory AS shared_memory')->fetch(PDO::FETCH_ASSOC);
-    assertRestoreTestIdentity($readIdentity(), $directory);
+    $assertIdentity = static function () use ($readIdentity, $directory, &$report): void {
+        $identity = $readIdentity();
+        $mismatches = findRestoreTestIdentityMismatches($identity, $directory);
+        if ($mismatches !== []) {
+            $report['identityMismatches'] = $mismatches;
+            throw new RuntimeException('Connection is not the isolated restore instance.');
+        }
+    };
+    $assertIdentity();
     $identityVerified = true;
+    $phase = 'remove-temporary-init-file';
     unlink($directory.'/init.sql');
     if ($connectionOnly) {
         $report['status'] = 'isolated-connection-passed';
@@ -121,7 +131,7 @@ try {
     } else {
         $pdo->exec('CREATE DATABASE pcc CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci');
         $phase = 'import-into-isolated-instance';
-        assertRestoreTestIdentity($readIdentity(), $directory);
+        $assertIdentity();
         $child = $start([$base.'/bin/mysql.exe', '--defaults-file='.$directory.'/client.cnf', '--protocol=TCP', '--host=127.0.0.1', '--port=13306', '--batch', '--binary-mode', '--local-infile=0', '--default-character-set=utf8mb4', '--max-allowed-packet=256M', '--database=pcc'], 'import', $backup);
         $code = waitForRestoreProcess($child, 600);
         proc_close($child);
@@ -130,7 +140,7 @@ try {
             throw new RuntimeException('Import failed or source backup changed.');
         }
         $phase = 'check-restored-objects';
-        assertRestoreTestIdentity($readIdentity(), $directory);
+        $assertIdentity();
         $tables = $pdo->query("SELECT TABLE_NAME, TABLE_TYPE, ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA='pcc'")->fetchAll(PDO::FETCH_ASSOC);
         $baseTables = array_filter($tables, static fn (array $table): bool => $table['TABLE_TYPE'] === 'BASE TABLE' && $table['ENGINE'] === 'InnoDB');
         $views = array_filter($tables, static fn (array $table): bool => $table['TABLE_TYPE'] === 'VIEW');

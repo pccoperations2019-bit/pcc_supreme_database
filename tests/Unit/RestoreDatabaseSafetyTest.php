@@ -28,6 +28,7 @@ final class RestoreDatabaseSafetyTest extends TestCase
         ] as $key => $value) {
             $identity = $this->identity();
             $identity[$key] = $value;
+            $this->assertSame([$key], findRestoreTestIdentityMismatches($identity, self::DIRECTORY));
             $rejected = false;
             try {
                 assertRestoreTestIdentity($identity, self::DIRECTORY);

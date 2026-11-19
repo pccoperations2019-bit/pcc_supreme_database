@@ -146,8 +146,61 @@ try {
     Check (@($report.migrationChanges).Count -eq 2) 'changed and production-only migrations require review'
     @{ schemaVersion = 1; stagingRoot = $live; livePath = $live } | ConvertTo-Json | Set-Content $configPath
     Must-Fail { & "$scripts/Stage-Release.ps1" -ArchivePath $archive -Commit $commit -Sha256 $hash -ConfigPath $configPath } 'live directory cannot be used for staging'
+
+    # Test self-hosted deploy.ps1 (-BackupFirst, sync, protection of .env/storage, migration gate, and auto-rollback)
+    $deployScript = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../scripts/deploy/deploy.ps1'))
+    $deployLive = Join-Path $testRoot 'deploy-live'
+    $deployRoot = Join-Path $testRoot 'deploy-root'
+    $backupRoot = Join-Path $testRoot 'backup-root'
+    Write-Fixture $deployLive 'app/OldFile.php' '<?php // stale file'
+    Write-Fixture $deployLive 'database/migrations/2026_01_01_example.php' '<?php'
+    Write-Fixture $deployLive '.env' 'APP_KEY=preserve-live-key'
+    Write-Fixture $deployLive 'storage/app/user.txt' 'preserve live upload'
+    Write-Fixture $deployLive 'public/storage/avatar.txt' 'preserve symlinked upload'
+    Write-Fixture $deployLive 'public/hot' 'http://localhost:5173'
+    Write-Fixture $deployLive 'bootstrap/cache/config.php' '<?php return [];'
+    $deployEnvHash = Get-ReleaseHash "$deployLive/.env"
+    $deployUploadHash = Get-ReleaseHash "$deployLive/storage/app/user.txt"
+    $deployPublicUploadHash = Get-ReleaseHash "$deployLive/public/storage/avatar.txt"
+    $deployCacheHash = Get-ReleaseHash "$deployLive/bootstrap/cache/config.php"
+
+    Must-Fail { & $deployScript -RepositoryPath $repo -Commit $commit -LivePath $deployLive -DeployRoot $deployRoot -BackupRoot $backupRoot -DryRun } 'deploy requires -BackupFirst'
+    $deployReport = & $deployScript -BackupFirst -RepositoryPath $repo -Commit $commit -LivePath $deployLive -DeployRoot $deployRoot -BackupRoot $backupRoot -DryRun | ConvertFrom-Json
+    Check ($deployReport.status -eq 'deployed' -and $deployReport.snapshotCreated -and $deployReport.activated -and $deployReport.smokeTestPassed) 'dry-run deploy succeeds with snapshot backup'
+    Check (Test-Path -LiteralPath (Join-Path $deployReport.backupPath 'app-snapshot/app/OldFile.php')) 'pre-deploy snapshot preserves previous code'
+    Check (-not (Test-Path -LiteralPath "$deployLive/app/OldFile.php") -and (Test-Path -LiteralPath "$deployLive/app/Example.php")) 'deploy syncs new code and removes stale managed files'
+    Check ((Get-Content -LiteralPath "$deployLive/public/build/assets/app.js" -Raw) -eq 'console.log("built");') 'deploy copies built frontend assets'
+    Check (-not (Test-Path -LiteralPath "$deployLive/public/hot")) 'deploy removes stale public/hot dev marker'
+    Check ((Get-Content -LiteralPath "$deployLive/DEPLOYED_COMMIT.txt" -Raw) -match "commit=$commit") 'deploy writes DEPLOYED_COMMIT.txt marker'
+    Check ((Get-ReleaseHash "$deployLive/.env") -eq $deployEnvHash -and (Get-ReleaseHash "$deployLive/storage/app/user.txt") -eq $deployUploadHash -and (Get-ReleaseHash "$deployLive/public/storage/avatar.txt") -eq $deployPublicUploadHash -and (Get-ReleaseHash "$deployLive/bootstrap/cache/config.php") -eq $deployCacheHash) 'deploy preserves .env, storage uploads, and bootstrap cache'
+
+    Write-Fixture $repo 'app/Example.php' '<?php // v2'
+    Write-Fixture $repo 'database/migrations/2026_02_01_new.php' '<?php'
+    & git -C $repo add 'app/Example.php' 'database/migrations/2026_02_01_new.php'
+    & git -C $repo -c user.name=DeploymentTests -c user.email=tests@example.invalid -c commit.gpgsign=false commit --quiet -m v2
+    if ($LASTEXITCODE -ne 0) { throw 'Fixture v2 commit failed.' }
+    $commitV2 = & git -C $repo rev-parse HEAD
+    Must-Fail { & $deployScript -BackupFirst -RepositoryPath $repo -Commit $commitV2 -LivePath $deployLive -DeployRoot $deployRoot -BackupRoot $backupRoot -DryRun } 'deploy blocks unapproved migration changes'
+    $v2ReportDir = Get-ChildItem -LiteralPath $backupRoot -Directory -Filter "predeploy-*-$($commitV2.Substring(0, 8))-*" | Select-Object -First 1
+    $v2Report = Get-Content -LiteralPath (Join-Path $v2ReportDir.FullName 'deploy-report.json') -Raw | ConvertFrom-Json
+    Check (-not $v2Report.activated -and @($v2Report.migrationChanges).Count -eq 1 -and $v2Report.error -match 'Migration files differ') 'migration gate rejects deploy before modifying live files'
+
+    Write-Fixture $repo 'app/Example.php' '<?php // v3 rollback target'
+    & git -C $repo rm --quiet 'database/migrations/2026_02_01_new.php'
+    & git -C $repo add 'app/Example.php'
+    & git -C $repo -c user.name=DeploymentTests -c user.email=tests@example.invalid -c commit.gpgsign=false commit --quiet -m v3
+    if ($LASTEXITCODE -ne 0) { throw 'Fixture v3 commit failed.' }
+    $commitV3 = & git -C $repo rev-parse HEAD
+    Must-Fail { & $deployScript -BackupFirst -RepositoryPath $repo -Commit $commitV3 -LivePath $deployLive -DeployRoot $deployRoot -BackupRoot $backupRoot -DryRun -SimulateSmokeTestFailure } 'smoke test failure fails deploy script'
+    $v3ReportDir = Get-ChildItem -LiteralPath $backupRoot -Directory -Filter "predeploy-*-$($commitV3.Substring(0, 8))-*" | Select-Object -First 1
+    $rollbackReport = Get-Content -LiteralPath (Join-Path $v3ReportDir.FullName 'deploy-report.json') -Raw | ConvertFrom-Json
+    Check ($rollbackReport.status -eq 'rolled-back' -and $rollbackReport.rolledBack -and $rollbackReport.error -match 'Simulated smoke test failure') 'failed smoke test triggers automatic rollback'
+    Check ((Get-Content -LiteralPath "$deployLive/app/Example.php" -Raw) -eq '<?php') 'rollback restores previous PHP code'
+    Check ((Get-Content -LiteralPath "$deployLive/DEPLOYED_COMMIT.txt" -Raw) -match "commit=$commit") 'rollback restores previous DEPLOYED_COMMIT.txt'
+    Check ((Get-ReleaseHash "$deployLive/.env") -eq $deployEnvHash -and (Get-ReleaseHash "$deployLive/storage/app/user.txt") -eq $deployUploadHash -and (Get-ReleaseHash "$deployLive/public/storage/avatar.txt") -eq $deployPublicUploadHash) 'rollback preserves .env and uploads'
+
     Write-Fixture $repo 'app/Example.php' '<?php // dirty'
-    Must-Fail { & "$scripts/New-Release.ps1" -RepositoryPath $repo -OutputDirectory "$testRoot/dirty" -Commit $commit } 'modified source cannot be labelled as a tested commit'
+    Must-Fail { & "$scripts/New-Release.ps1" -RepositoryPath $repo -OutputDirectory "$testRoot/dirty" -Commit $commitV3 } 'modified source cannot be labelled as a tested commit'
     Write-Output "All $passed deployment checks passed."
 } finally {
     # Delete only this uniquely created disposable test tree, never a computed live path.

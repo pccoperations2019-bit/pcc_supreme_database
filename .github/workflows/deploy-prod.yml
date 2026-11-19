@@ -1,0 +1,112 @@
+name: Deploy Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      allow_migrations:
+        description: 'Allow deployment when database/migrations changed (requires prior DB review)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: supreme-deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, windows, supreme-prod]
+    environment: production
+    timeout-minutes: 30
+
+    steps:
+      - name: Verify main branch ref
+        shell: powershell
+        run: |
+          if ($env:GITHUB_REF -cne 'refs/heads/main') {
+            throw "Production deploy is restricted to refs/heads/main (got '$env:GITHUB_REF')."
+          }
+
+      - name: Check out main branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Configure server PHP, Composer, and Node runtimes
+        shell: powershell
+        run: |
+          $phpDir = 'C:\laragon\bin\php\php-8.4.27-nts-Win32-vs17-x64'
+          $composerDir = 'C:\ProgramData\ComposerSetup\bin'
+          $nodeDir = 'C:\ProgramData\SUPREME-Deploy\runtime\node-v22.23.0'
+          foreach ($dir in @($phpDir, $composerDir, $nodeDir)) {
+            if (-not (Test-Path -LiteralPath $dir)) {
+              throw "Required server runtime directory missing: $dir"
+            }
+            Add-Content -LiteralPath $env:GITHUB_PATH -Value $dir
+          }
+          $env:Path = "$phpDir;$composerDir;$nodeDir;$env:Path"
+          $phpVersion = & "$phpDir\php.exe" -r 'echo PHP_VERSION;'
+          if ($LASTEXITCODE -ne 0 -or $phpVersion -cne '8.4.27') {
+            throw "Expected PHP 8.4.27, got '$phpVersion'."
+          }
+          $nodeVersion = & "$nodeDir\node.exe" --version
+          if ($LASTEXITCODE -ne 0 -or $nodeVersion -notmatch '^v22\.') {
+            throw "Expected Node v22.x, got '$nodeVersion'."
+          }
+
+      - name: Run lint, frontend tests, and asset build
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          php C:\ProgramData\ComposerSetup\bin\composer.phar install --no-interaction --prefer-dist --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Composer install failed.' }
+          php vendor/laravel/pint/builds/pint --test
+          if ($LASTEXITCODE -ne 0) { throw 'Pint code style check failed.' }
+          npm ci
+          if ($LASTEXITCODE -ne 0) { throw 'npm ci failed.' }
+          npm run test:frontend
+          if ($LASTEXITCODE -ne 0) { throw 'Frontend regression tests failed.' }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'Vite production build failed.' }
+
+      - name: Deploy with -BackupFirst and run smoke test
+        shell: powershell
+        env:
+          ALLOW_MIGRATIONS: ${{ inputs.allow_migrations }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $deployArgs = @{
+            BackupFirst    = $true
+            RepositoryPath = $PWD.Path
+            Commit         = '${{ github.sha }}'
+            SmokeTestUrl   = 'https://supremecbed.pcc.gov.ph/login'
+          }
+          if ($env:ALLOW_MIGRATIONS -eq 'true') {
+            $deployArgs['AllowMigrations'] = $true
+          }
+          & .\scripts\deploy\deploy.ps1 @deployArgs
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Production deployment script failed.'
+          }
+
+      - name: Tag deployed commit (prod-YYYY-MM-DD-HHMM)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $manila = [TimeZoneInfo]::ConvertTimeBySystemTimeZoneId([DateTimeOffset]::UtcNow, 'Singapore Standard Time')
+          $tagName = 'prod-' + $manila.ToString('yyyy-MM-dd-HHmm')
+          $existing = & git tag -l $tagName
+          if ($existing) {
+            $tagName = 'prod-' + $manila.ToString('yyyy-MM-dd-HHmmss')
+          }
+          & git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' `
+            tag -a $tagName '${{ github.sha }}' -m "Deployed commit ${{ github.sha }} to SUPREME production by ${{ github.actor }}"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to create tag $tagName." }
+          & git push origin "refs/tags/$tagName"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to push tag $tagName." }
+          Write-Host "Tagged and pushed production release: $tagName"

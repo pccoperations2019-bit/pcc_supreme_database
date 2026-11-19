@@ -21,17 +21,31 @@ function assertRestoreTestDirectory(string $directory): void
     }
 }
 
-function assertRestoreTestIdentity(array $identity, string $directory): void
+function findRestoreTestIdentityMismatches(array $identity, string $directory): array
 {
     assertRestoreTestDirectory($directory);
-    $dataPath = strtolower(rtrim(str_replace('\\', '/', $identity['data_directory']), '/'));
-    if ($identity['version'] !== '8.0.40' || (string) $identity['port'] !== '13306'
-        || ($identity['authenticated_account'] ?? null) !== 'root@127.0.0.1'
-        || $dataPath !== strtolower($directory.'/data')
-        || $identity['bind_address'] !== '127.0.0.1' || $identity['event_scheduler'] !== 'DISABLED'
-        || (string) $identity['local_infile'] !== '0' || $identity['secure_file_priv'] !== null
-        || (string) $identity['log_bin'] !== '0' || (string) $identity['named_pipe'] !== '0'
-        || (string) $identity['shared_memory'] !== '0') {
+    $dataPath = strtolower(rtrim(str_replace('\\', '/', (string) ($identity['data_directory'] ?? '')), '/'));
+    $checks = [
+        'version' => ($identity['version'] ?? null) === '8.0.40',
+        'port' => (string) ($identity['port'] ?? '') === '13306',
+        'authenticated_account' => ($identity['authenticated_account'] ?? null) === 'root@127.0.0.1',
+        'data_directory' => $dataPath === strtolower($directory.'/data'),
+        'bind_address' => ($identity['bind_address'] ?? null) === '127.0.0.1',
+        'event_scheduler' => ($identity['event_scheduler'] ?? null) === 'DISABLED',
+        'local_infile' => (string) ($identity['local_infile'] ?? '') === '0',
+        'secure_file_priv' => array_key_exists('secure_file_priv', $identity) && $identity['secure_file_priv'] === null,
+        'log_bin' => (string) ($identity['log_bin'] ?? '') === '0',
+        'named_pipe' => (string) ($identity['named_pipe'] ?? '') === '0',
+        'shared_memory' => (string) ($identity['shared_memory'] ?? '') === '0',
+    ];
+
+    return array_keys(array_filter($checks, static fn (bool $matched): bool => ! $matched));
+}
+
+function assertRestoreTestIdentity(array $identity, string $directory): void
+{
+    $mismatches = findRestoreTestIdentityMismatches($identity, $directory);
+    if ($mismatches !== []) {
         throw new RuntimeException('Connection is not the isolated restore instance.');
     }
 }

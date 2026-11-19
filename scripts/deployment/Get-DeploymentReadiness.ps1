@@ -16,6 +16,19 @@ $required = @('bcmath', 'curl', 'dom', 'fileinfo', 'gd', 'intl', 'mbstring', 'op
 $missing = @($required | Where-Object { $_ -notin $extensions })
 $nodeCommand = Get-Command node.exe -ErrorAction SilentlyContinue
 $npmCommand = Get-Command npm.cmd -ErrorAction SilentlyContinue
+$configuredNode = $null
+$nodeVersion = $null
+$npmVersion = $null
+if ($config.PSObject.Properties.Name -contains 'nodePath') {
+    if (-not (Test-Path -LiteralPath $config.nodePath) -or -not (Test-Path -LiteralPath $config.npmPath)) {
+        throw 'Configured Node/npm runtime is missing.'
+    }
+    $configuredNode = $config.nodePath
+    $nodeVersion = & $config.nodePath --version
+    if ($LASTEXITCODE -ne 0 -or $nodeVersion -notmatch '^v22\.') { throw 'Expected a working configured Node 22 runtime.' }
+    $npmVersion = & $config.npmPath --version
+    if ($LASTEXITCODE -ne 0) { throw 'Configured npm runtime failed.' }
+}
 [ordered]@{
     identity = [Security.Principal.WindowsIdentity]::GetCurrent().Name
     phpPath = $config.phpPath
@@ -25,6 +38,9 @@ $npmCommand = Get-Command npm.cmd -ErrorAction SilentlyContinue
     environmentFilePresent = Test-Path -LiteralPath (Join-Path $config.livePath '.env')
     nodeAvailableOnPath = $null -ne $nodeCommand
     npmAvailableOnPath = $null -ne $npmCommand
+    configuredNodePath = $configuredNode
+    configuredNodeVersion = $nodeVersion
+    configuredNpmVersion = $npmVersion
     stagingRoot = $config.stagingRoot
     livePath = $config.livePath
     activationAllowed = $false

@@ -21,8 +21,14 @@ Verified current state
   privileges just for inspection; use the maintainer's elevated RDP session.
 - Production Git remote remains outsoarph/supreme-cbed-poc. Do not git pull,
   reset or clean the live folder. Its history differs from the maintained repo.
-- Node/npm were not found on the deployment account's PATH; browser/PDF
-  dependencies must be verified under the eventual application identities.
+- The admin session resolves Node to C:\nvm4w\nodejs, a symbolic link to
+  C:\Users\Administrator\AppData\Local\nvm\v22.23.0. The deployment account
+  cannot execute it from that profile. Install-DeploymentNode.ps1 copies only
+  that runtime and bundled npm to the protected deployment workspace. It does
+  not grant access to the Administrator profile or change machine PATH.
+- The administrator installed the staging workspace, and deployment-account
+  read-only controller ACLs plus staging/incoming create/delete were verified.
+- Browser/PDF behavior still needs verification under application identities.
 
 Files prepared
 scripts/deployment/New-Release.ps1
@@ -54,6 +60,14 @@ scripts/deployment/Get-DeploymentReadiness.ps1
   Reads the protected server config, checks explicit PHP 8.4 and extensions,
   records presence of environment and dependencies without reading secrets.
 
+scripts/deployment/Install-DeploymentNode.ps1
+  Administrator-only, one-time copy of existing Node 22.23.0 and its bundled
+  npm into SUPREME-Deploy/runtime/node-v22.23.0. Refuses to replace an existing
+  target, rejects source links, verifies the copied executable and versions,
+  backs up server.json and configures explicit nodePath/npmPath. Uses inherited
+  protected workspace ACLs; no profile, machine PATH or live app is modified.
+  Upgrading this pinned runtime later requires a reviewed administrator action.
+
 .github/workflows/ci.yml
   After application tests and deployment-tool tests pass, main push builds
   produce release-<full SHA> artifacts. PHP/vendor and Node production
@@ -83,6 +97,10 @@ Administrator setup after review
    are writable. A previous partial setup requires inspection, not blind rerun.
 5. Keep live-folder permissions unchanged until the activation/recovery design
    and worker supervision are verified. Staging permissions are sufficient now.
+6. Run Install-DeploymentNode.ps1 once as administrator from the reviewed setup
+   bundle, then verify configuredNodeVersion/configuredNpmVersion through SSH.
+   The default SSH PATH can still lack Node; commands must use server.json's
+   explicit runtime paths or a process-scoped PATH when preparing dependencies.
 
 GitHub settings (repository admin required)
 - Create environment production; restrict it to main and require a reviewer

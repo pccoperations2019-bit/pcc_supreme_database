@@ -116,6 +116,48 @@ backup and a protected off-server copy before recovery can be considered ready.
 Reference: https://dev.mysql.com/doc/refman/8.0/en/mysqldump.html
 Reference: https://dev.mysql.com/doc/refman/8.0/en/option-file-options.html
 
+Isolated restore rehearsal (prepared, not yet executed)
+The maintainer selected a temporary separate MySQL instance on the same server.
+Test-ProductionDatabaseRestore.ps1 requires an explicit -RunIsolatedRestore
+switch in elevated Windows PowerShell 5.1. It pins the completed export's path
+and SHA256, requires available disk/RAM and an unused port 13306, and creates a
+new administrator-only restore-test-<GUID> directory under SUPREME-Backups.
+No existing database directory is reused. Existing MySQL 8.0.40 binaries create
+the new data directory and run with an explicit private option file.
+
+The test binds only 127.0.0.1:13306; X Protocol, named pipes, shared memory,
+database event execution, local infile and binary logging are disabled.
+Server-side file import/export is disabled. A random test-only root password
+is set at startup using a protected init file; no production credentials are
+used. Buffer-pool configuration is 128 MiB, but total process memory is larger.
+Initialization, import and table checks add CPU/disk load on this shared host.
+Do not log off or kill the admin PowerShell while it is running.
+
+Before creating/importing the database, PHP checks the actual connected
+server's version, port, data directory and isolation settings. The MySQL
+client consumes the exact dump through a raw file descriptor in binary mode.
+The fresh pcc test schema uses utf8mb4/utf8mb4_0900_ai_ci, confirmed through a
+read-only production metadata query. Import errors fail the rehearsal.
+Success requires 78 InnoDB tables, one view and CHECK TABLE QUICK returning OK
+for all 79 objects. This checks restoration and object integrity, not equality
+to current live rows, application behavior, or restoration of MySQL accounts.
+
+The script requests SHUTDOWN only after verifying the test connection. Its
+fallback can terminate only process handles that this invocation created.
+The final report states whether the test server stopped. A successful import
+with failed shutdown/cleanup is not reported as a clean rehearsal. Sensitive
+test data and diagnostic logs remain protected for administrator inspection;
+there is no recursive deletion. Credentials are removed after shutdown. If
+PowerShell/PHP is killed or the server crashes, inspect the exact recorded test
+PID and protected test folder before recovery; never stop all mysqld processes.
+No Windows service is installed, no firewall rule changes, and the live MySQL,
+application processes, Git remote and deployment activation are unchanged.
+
+References:
+https://dev.mysql.com/doc/refman/8.0/en/multiple-windows-servers.html
+https://dev.mysql.com/doc/refman/8.0/en/resetting-permissions.html
+https://dev.mysql.com/doc/refman/8.0/en/mysql-command-options.html
+
 Files prepared
 scripts/deployment/New-Release.ps1
   Packages only tracked application source plus the built public/build assets.

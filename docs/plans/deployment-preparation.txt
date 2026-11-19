@@ -32,10 +32,24 @@ Verified current state
   and verified through SSH as supreme_deploy. Runtime/config ACLs remain
   read/execute only for that account. Default PATH is intentionally unchanged.
 - Browser/PDF behavior still needs verification under application identities.
-- Repository access was rechecked: the connected account has push access but
-  not admin access, and no GitHub deployment environments exist yet.
+- The owner account pccoperations2019-bit is now authenticated with repository
+  admin access. Environment production was created and read back: only branch
+  main is allowed, ajeonsu is the required reviewer, and self-review is allowed
+  for the initial maintainer-supervised rollout. Network readiness remains
+  false. Host/port/user variables are configured; no environment secrets exist.
 - The maintainer confirms no approved runner network method yet and is unsure
   whether application/MySQL backups exist. Neither prerequisite is verified.
+- Administrator inventory found the web/PHP/MySQL processes under the
+  Administrator interactive session, with queue/scheduler wrappers as SYSTEM.
+  The matching MySQL80 service is stopped while Laragon MySQL processes run;
+  do not start that service or infer it controls the active database.
+- C:\laragon\www\supreme-cbed-poc.zip exists (331884360 bytes, modified
+  18 November 2026 09:06 Asia/Manila). ZIP directory metadata shows .env,
+  storage files and one SQL entry. That entry is the 108-byte Laravel Sail
+  vendor/laravel/sail/database/pgsql/create-testing-database.sql script, not
+  a production database dump. No MySQL backup has been verified. Archive
+  contents/integrity and restore are NOT verified. Keep backup contents off
+  GitHub/chat.
 
 Files prepared
 scripts/deployment/New-Release.ps1
@@ -70,7 +84,9 @@ scripts/deployment/Get-DeploymentReadiness.ps1
 scripts/deployment/Get-ProductionOperations.ps1
   Read-only administrator inventory of relevant process identities, matching
   services/tasks, fixed-disk capacity and backup file candidates in conventional
-  top-level directories. Classifies command lines without printing them. Does
+  top-level directories. Includes bounded process ancestry to identify service
+  wrappers, checking creation times against PID reuse. Classifies command lines
+  without printing them. Does
   not run application commands, query the database or change server state.
   Candidate backup files are not proof of consistent or recoverable backups;
   an empty candidate list is not proof that no backups exist elsewhere.

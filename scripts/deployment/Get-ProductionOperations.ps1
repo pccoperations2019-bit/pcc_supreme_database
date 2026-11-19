@@ -16,11 +16,31 @@ function Get-OperationKinds([string]$Text) {
 }
 
 # Command lines are used only to classify relevant processes; never printed.
-$processes = @(Get-CimInstance Win32_Process | Where-Object {
+$allProcesses = @(Get-CimInstance Win32_Process)
+$processes = @($allProcesses | Where-Object {
     $_.Name -match '^(php(-cgi)?|nginx|mysqld|httpd|laragon)\.exe$' -or
     ($_.Name -match '^(cmd|powershell|pwsh)\.exe$' -and
         $_.CommandLine -match 'queue-listen\.bat|scheduler\.bat|artisan\s+(queue|schedule):')
 })
+# Include up to six ancestor levels so service wrappers (for example NSSM)
+# are mapped to their service names instead of guessing restart commands.
+$processById = @{}
+foreach ($process in $allProcesses) { $processById[[string]$process.ProcessId] = $process }
+$relatedIds = [Collections.Generic.HashSet[uint32]]::new()
+foreach ($process in $processes) {
+    $null = $relatedIds.Add([uint32]$process.ProcessId)
+    $child = $process
+    for ($depth = 0; $depth -lt 6; $depth++) {
+        $parent = $processById[[string]$child.ParentProcessId]
+        if ($null -eq $parent) { break }
+        # A reused PID may now refer to a newer, unrelated process.
+        if ($null -eq $parent.CreationDate -or $null -eq $child.CreationDate -or
+            $parent.CreationDate -gt $child.CreationDate) { break }
+        if (-not $relatedIds.Add([uint32]$parent.ProcessId)) { break }
+        $child = $parent
+    }
+}
+$processes = @($allProcesses | Where-Object { $relatedIds.Contains([uint32]$_.ProcessId) })
 $processRows = @(foreach ($process in $processes) {
     try {
         $owner = Invoke-CimMethod -InputObject $process -MethodName GetOwner

@@ -20,7 +20,8 @@ $workspaceAccepted = false;
 $report = ['status' => 'failed', 'restoreVerified' => false, 'applicationRecoveryVerified' => false, 'activationAllowed' => false];
 $exitCode = 1;
 try {
-    if (PHP_OS_FAMILY !== 'Windows' || PHP_VERSION !== '8.4.27' || count($argv) !== 1) {
+    $connectionOnly = count($argv) === 2 && $argv[1] === '--connection-only';
+    if (PHP_OS_FAMILY !== 'Windows' || PHP_VERSION !== '8.4.27' || (count($argv) !== 1 && ! $connectionOnly)) {
         throw new RuntimeException('Unexpected runtime or invocation.');
     }
     assertRestoreTestDirectory($directory);
@@ -80,7 +81,8 @@ try {
         throw new RuntimeException('Isolated data directory initialization failed.');
     }
     $phase = 'start-isolated-server';
-    $server = $start([$base.'/bin/mysqld.exe', '--defaults-file='.$directory.'/server.ini', '--init-file='.$directory.'/init.sql'], 'server');
+    // Windows otherwise launches a monitor whose exit does not stop its child server.
+    $server = $start([$base.'/bin/mysqld.exe', '--defaults-file='.$directory.'/server.ini', '--no-monitor', '--init-file='.$directory.'/init.sql'], 'server');
     $stopped = false;
     $report['testServerPid'] = proc_get_status($server)['pid'];
     $report['startedAtUtc'] = gmdate('c');
@@ -91,8 +93,10 @@ try {
         }
         try {
             $pdo = new PDO('mysql:host=127.0.0.1;port=13306;charset=utf8mb4', 'root', $password, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_TIMEOUT => 2, PDO::ATTR_EMULATE_PREPARES => false, PDO::MYSQL_ATTR_MULTI_STATEMENTS => false]);
+            unset($report['lastConnectionError']);
             break;
-        } catch (PDOException) {
+        } catch (PDOException $connectionError) {
+            $report['lastConnectionError'] = restoreConnectionErrorCodes($connectionError);
             if (microtime(true) >= $deadline) {
                 throw new RuntimeException('Test server did not become ready.');
             }
@@ -101,46 +105,55 @@ try {
     } while (true);
     unset($password);
     $phase = 'verify-isolated-server-identity';
+    if (trim(file_get_contents($directory.'/test.pid')) !== (string) $report['testServerPid']) {
+        throw new RuntimeException('Test server PID is not the owned single-process launcher.');
+    }
     $readIdentity = static fn (): array => $pdo->query('SELECT VERSION() AS version, @@port AS port, @@datadir AS data_directory, @@bind_address AS bind_address, @@event_scheduler AS event_scheduler, @@local_infile AS local_infile, @@secure_file_priv AS secure_file_priv, @@log_bin AS log_bin, @@named_pipe AS named_pipe, @@shared_memory AS shared_memory')->fetch(PDO::FETCH_ASSOC);
     assertRestoreTestIdentity($readIdentity(), $directory);
     $identityVerified = true;
     unlink($directory.'/init.sql');
-    $pdo->exec('CREATE DATABASE pcc CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci');
-    $phase = 'import-into-isolated-instance';
-    assertRestoreTestIdentity($readIdentity(), $directory);
-    $child = $start([$base.'/bin/mysql.exe', '--defaults-file='.$directory.'/client.cnf', '--protocol=TCP', '--host=127.0.0.1', '--port=13306', '--batch', '--binary-mode', '--local-infile=0', '--default-character-set=utf8mb4', '--max-allowed-packet=256M', '--database=pcc'], 'import', $backup);
-    $code = waitForRestoreProcess($child, 600);
-    proc_close($child);
-    $child = null;
-    if ($code !== 0 || hash_file('sha256', $backup) !== $backupHash) {
-        throw new RuntimeException('Import failed or source backup changed.');
-    }
-    $phase = 'check-restored-objects';
-    assertRestoreTestIdentity($readIdentity(), $directory);
-    $tables = $pdo->query("SELECT TABLE_NAME, TABLE_TYPE, ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA='pcc'")->fetchAll(PDO::FETCH_ASSOC);
-    $baseTables = array_filter($tables, static fn (array $table): bool => $table['TABLE_TYPE'] === 'BASE TABLE' && $table['ENGINE'] === 'InnoDB');
-    $views = array_filter($tables, static fn (array $table): bool => $table['TABLE_TYPE'] === 'VIEW');
-    if (count($tables) !== 79 || count($baseTables) !== 78 || count($views) !== 1) {
-        throw new RuntimeException('Restored table/view metadata does not match the export.');
-    }
-    foreach ($tables as $table) {
-        $name = str_replace('`', '``', $table['TABLE_NAME']);
-        $rows = $pdo->query('CHECK TABLE `pcc`.`'.$name.'` QUICK')->fetchAll(PDO::FETCH_ASSOC);
-        $ok = false;
-        foreach ($rows as $row) {
-            if ($row['Msg_type'] === 'error') {
-                throw new RuntimeException('Restored object check failed.');
+    if ($connectionOnly) {
+        $report['status'] = 'isolated-connection-passed';
+        $report['connectionVerified'] = true;
+        $exitCode = 0;
+    } else {
+        $pdo->exec('CREATE DATABASE pcc CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci');
+        $phase = 'import-into-isolated-instance';
+        assertRestoreTestIdentity($readIdentity(), $directory);
+        $child = $start([$base.'/bin/mysql.exe', '--defaults-file='.$directory.'/client.cnf', '--protocol=TCP', '--host=127.0.0.1', '--port=13306', '--batch', '--binary-mode', '--local-infile=0', '--default-character-set=utf8mb4', '--max-allowed-packet=256M', '--database=pcc'], 'import', $backup);
+        $code = waitForRestoreProcess($child, 600);
+        proc_close($child);
+        $child = null;
+        if ($code !== 0 || hash_file('sha256', $backup) !== $backupHash) {
+            throw new RuntimeException('Import failed or source backup changed.');
+        }
+        $phase = 'check-restored-objects';
+        assertRestoreTestIdentity($readIdentity(), $directory);
+        $tables = $pdo->query("SELECT TABLE_NAME, TABLE_TYPE, ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA='pcc'")->fetchAll(PDO::FETCH_ASSOC);
+        $baseTables = array_filter($tables, static fn (array $table): bool => $table['TABLE_TYPE'] === 'BASE TABLE' && $table['ENGINE'] === 'InnoDB');
+        $views = array_filter($tables, static fn (array $table): bool => $table['TABLE_TYPE'] === 'VIEW');
+        if (count($tables) !== 79 || count($baseTables) !== 78 || count($views) !== 1) {
+            throw new RuntimeException('Restored table/view metadata does not match the export.');
+        }
+        foreach ($tables as $table) {
+            $name = str_replace('`', '``', $table['TABLE_NAME']);
+            $rows = $pdo->query('CHECK TABLE `pcc`.`'.$name.'` QUICK')->fetchAll(PDO::FETCH_ASSOC);
+            $ok = false;
+            foreach ($rows as $row) {
+                if ($row['Msg_type'] === 'error') {
+                    throw new RuntimeException('Restored object check failed.');
+                }
+                $ok = $ok || ($row['Msg_type'] === 'status' && $row['Msg_text'] === 'OK');
             }
-            $ok = $ok || ($row['Msg_type'] === 'status' && $row['Msg_text'] === 'OK');
+            if (! $ok) {
+                throw new RuntimeException('Restored object check did not report OK.');
+            }
         }
-        if (! $ok) {
-            throw new RuntimeException('Restored object check did not report OK.');
-        }
+        $report += ['backupSha256' => $backupHash, 'tableCount' => 78, 'viewCount' => 1, 'objectChecksPassed' => 79, 'importExitCode' => $code];
+        $report['status'] = 'isolated-database-restore-passed';
+        $report['restoreVerified'] = true;
+        $exitCode = 0;
     }
-    $report += ['backupSha256' => $backupHash, 'tableCount' => 78, 'viewCount' => 1, 'objectChecksPassed' => 79, 'importExitCode' => $code];
-    $report['status'] = 'isolated-database-restore-passed';
-    $report['restoreVerified'] = true;
-    $exitCode = 0;
 } catch (Throwable $error) {
     $report['failedPhase'] = $phase;
     $report['exceptionType'] = get_class($error);
@@ -184,22 +197,15 @@ try {
             }
         },
     ], $report, $exitCode);
-    if ($stopped && $workspaceAccepted) {
-        foreach (['init.sql', 'client.cnf'] as $name) {
-            runRestoreCleanupSteps([
-                'protectedCredentialCleanupFailed' => static function () use ($directory, $name): void {
-                    if (is_file($directory.'/'.$name)) {
-                        unlink($directory.'/'.$name);
-                    }
-                },
-            ], $report, $exitCode);
-        }
-    }
 }
-$report['testServerStopped'] = $stopped;
+$report['testLauncherStopped'] = $stopped;
+// The elevated wrapper independently checks process inventory and the listener.
+$report['testServerStopped'] = false;
 $report['completedAtUtc'] = gmdate('c');
 if ($exitCode !== 0 && $report['restoreVerified']) {
     $report['status'] = 'restore-passed-cleanup-needs-attention';
+} elseif ($exitCode !== 0 && ($report['connectionVerified'] ?? false)) {
+    $report['status'] = 'connection-passed-cleanup-needs-attention';
 }
 $json = json_encode($report, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
 // The path guard also prevents writing a report when invoked outside the wrapper.
@@ -213,6 +219,8 @@ try {
     $report['reportWriteFailed'] = true;
     if ($report['restoreVerified']) {
         $report['status'] = 'restore-passed-report-write-failed';
+    } elseif ($report['connectionVerified'] ?? false) {
+        $report['status'] = 'connection-passed-report-write-failed';
     }
     $json = json_encode($report, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
 }

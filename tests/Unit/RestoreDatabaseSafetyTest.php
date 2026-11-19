@@ -104,6 +104,15 @@ final class RestoreDatabaseSafetyTest extends TestCase
         $this->assertSame('{"childCleanupNeedsAttention":true}', json_encode($report, JSON_THROW_ON_ERROR));
     }
 
+    public function test_connection_diagnostic_excludes_message_and_credentials(): void
+    {
+        $error = new PDOException('Password secret-value');
+        $error->errorInfo = ['HY000', 1045, 'Password secret-value'];
+        $this->assertSame(['sqlState' => 'HY000', 'driverCode' => 1045], restoreConnectionErrorCodes($error));
+        $error->errorInfo = ['secret-value', 'secret-value', 'secret-value'];
+        $this->assertSame(['sqlState' => null, 'driverCode' => null], restoreConnectionErrorCodes($error));
+    }
+
     private function startFixture(string $code): mixed
     {
         $null = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';

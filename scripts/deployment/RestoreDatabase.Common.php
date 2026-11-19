@@ -2,6 +2,18 @@
 
 declare(strict_types=1);
 
+function restoreConnectionErrorCodes(PDOException $error): array
+{
+    // Never include the driver message: it may contain credentials or SQL.
+    $state = $error->errorInfo[0] ?? null;
+    $code = $error->errorInfo[1] ?? null;
+
+    return [
+        'sqlState' => is_string($state) && preg_match('/\A[A-Z0-9]{5}\z/', $state) ? $state : null,
+        'driverCode' => is_int($code) && $code >= 0 && $code <= 65535 ? $code : null,
+    ];
+}
+
 function assertRestoreTestDirectory(string $directory): void
 {
     if (! preg_match('~\AC:/ProgramData/SUPREME-Backups/restore-test-[0-9a-f]{32}\z~i', $directory)) {

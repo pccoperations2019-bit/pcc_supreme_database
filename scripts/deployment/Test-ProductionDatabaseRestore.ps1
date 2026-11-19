@@ -1,6 +1,6 @@
 # Administrator-only rehearsal against a NEW local MySQL instance, never port 3306.
 [CmdletBinding()]
-param([switch]$RunIsolatedRestore)
+param([switch]$RunIsolatedRestore, [switch]$ConnectionOnly)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 if (-not $RunIsolatedRestore) { throw 'Review the isolated restore procedure, then pass -RunIsolatedRestore to execute it.' }
@@ -56,6 +56,68 @@ foreach ($name in @('RestoreDatabase.Common.php', 'Run-IsolatedDatabaseRestore.p
 Write-Output "Protected restore-test directory: $run"
 Write-Output 'Starting temporary MySQL on 127.0.0.1:13306; initialization/import add disk and CPU load.'
 Write-Output 'Keep this session open. No production service, firewall, Git remote or live database is changed.'
-& $php (Join-Path $run 'Run-IsolatedDatabaseRestore.php')
-if ($LASTEXITCODE) { throw "Restore rehearsal did not complete. Inspect the safe report in $run; do not post SQL or raw logs." }
-Write-Output 'Isolated database restore and shutdown completed. Full application recovery and deployment activation remain pending.'
+$helperArguments = @((Join-Path $run 'Run-IsolatedDatabaseRestore.php'))
+if ($ConnectionOnly) {
+    $helperArguments += '--connection-only'
+    Write-Output 'Connection-only diagnostic: no application database will be created or imported.'
+}
+$report = $null
+$helperExitCode = 1
+try {
+    $output = @(& $php @helperArguments)
+    $helperExitCode = $LASTEXITCODE
+    $report = ($output -join "`n") | ConvertFrom-Json
+} finally {
+    # A monitor process can exit while its mysqld child remains. Never infer
+    # server shutdown from the PHP process handle alone, or kill by image name.
+    $shutdownVerified = $false
+    try {
+        $remainingListeners = @([Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners() | Where-Object Port -eq 13306)
+        $mysqlProcesses = @(Get-CimInstance Win32_Process -Filter "Name='mysqld.exe'")
+        $unknownProcesses = @($mysqlProcesses | Where-Object { -not $_.CommandLine })
+        $remainingTestProcesses = @($mysqlProcesses | Where-Object {
+            $_.CommandLine -and $_.CommandLine.Replace('\', '/').IndexOf($run.Replace('\', '/'), [StringComparison]::OrdinalIgnoreCase) -ge 0
+        })
+        $shutdownVerified = $remainingListeners.Count -eq 0 -and $unknownProcesses.Count -eq 0 -and $remainingTestProcesses.Count -eq 0
+    } catch {
+        Write-Output 'Independent process/listener inspection failed; shutdown is unverified.'
+    }
+    if ($report) {
+        $report.testServerStopped = $shutdownVerified
+        if (-not $shutdownVerified) {
+            $helperExitCode = 1
+            $report.status = 'test-cleanup-needs-administrator-attention'
+        } else {
+            foreach ($name in @('init.sql', 'client.cnf')) {
+                $credentialFile = Join-Path $run $name
+                try {
+                    if (Test-Path -LiteralPath $credentialFile) {
+                        Remove-Item -LiteralPath $credentialFile -ErrorAction Stop
+                    }
+                } catch {
+                    $helperExitCode = 1
+                    $report.status = 'test-credential-cleanup-needs-administrator-attention'
+                    Add-Member -InputObject $report -NotePropertyName protectedCredentialCleanupFailed -NotePropertyValue $true -Force
+                }
+            }
+        }
+        $finalReport = $report | ConvertTo-Json -Depth 10
+        try {
+            Set-Content -LiteralPath (Join-Path $run 'restore-report.json') -Value $finalReport -Encoding UTF8
+        } catch {
+            $helperExitCode = 1
+            $report.status = 'test-report-write-failed'
+            Add-Member -InputObject $report -NotePropertyName reportWriteFailed -NotePropertyValue $true -Force
+            $finalReport = $report | ConvertTo-Json -Depth 10
+        }
+        Write-Output $finalReport
+    } else {
+        Write-Output "No valid helper report. Independently verified shutdown: $shutdownVerified"
+    }
+}
+if ($helperExitCode -ne 0 -or -not $report) { throw "Restore diagnostic did not complete. Inspect the safe report in $run; do not post SQL or raw logs." }
+if ($ConnectionOnly) {
+    Write-Output 'Connection diagnostic and shutdown completed. Database restore remains unverified.'
+} else {
+    Write-Output 'Isolated database restore and shutdown completed. Full application recovery and deployment activation remain pending.'
+}

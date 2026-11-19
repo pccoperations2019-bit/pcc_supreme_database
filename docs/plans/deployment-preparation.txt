@@ -116,7 +116,26 @@ backup and a protected off-server copy before recovery can be considered ready.
 Reference: https://dev.mysql.com/doc/refman/8.0/en/mysqldump.html
 Reference: https://dev.mysql.com/doc/refman/8.0/en/option-file-options.html
 
-Isolated restore rehearsal (prepared, not yet executed)
+Isolated restore rehearsal (first attempt failed; repair awaiting verification)
+On 2026-11-19 the first rehearsal failed at start-isolated-server before any
+application database import. The MySQL log reported ready for connections,
+but the PDO exception code had been discarded. The connection cause is still
+unresolved. PHP 8.4.27, pdo_mysql/mysqlnd and OpenSSL availability were checked.
+The original testServerStopped=true report was incorrect: it tracked only the
+Windows monitor PID 6912. Administrator inventory confirmed its child PID 8120
+still listening on 127.0.0.1:13306, referencing the exact test workspace and
+matching that workspace's PID file. The maintainer ran the guarded administrator
+cleanup and reported that the exact test process stopped and port 13306 is clear.
+
+The revised launcher uses --no-monitor and checks that the PID file matches
+the owned process. The wrapper independently checks both MySQL process inventory
+and port 13306 before reporting shutdown or deleting protected credentials.
+The next run must use -RunIsolatedRestore -ConnectionOnly: it initializes a NEW
+test instance, records only SQLSTATE/numeric driver codes on connection failure,
+verifies identity if connected, then attempts shutdown. It never creates or
+imports the pcc application database and never marks the restore verified.
+Actual Windows runtime verification of this repair remains pending.
+
 The maintainer selected a temporary separate MySQL instance on the same server.
 Test-ProductionDatabaseRestore.ps1 requires an explicit -RunIsolatedRestore
 switch in elevated Windows PowerShell 5.1. It pins the completed export's path

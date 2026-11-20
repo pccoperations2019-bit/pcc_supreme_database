@@ -203,24 +203,26 @@ function Sync-ApplicationTree {
 }
 
 function Stop-WorkerServices {
-    $stoppedServices = @()
+    $installedServices = @()
     foreach ($serviceName in $workerServices) {
         $svc = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
-        if ($null -ne $svc -and $svc.Status -ne [ServiceProcess.ServiceControllerStatus]::Stopped) {
-            Write-Host "Stopping service $serviceName..."
-            Stop-Service -Name $serviceName -Force -ErrorAction Stop
-            $svc.WaitForStatus([ServiceProcess.ServiceControllerStatus]::Stopped, [TimeSpan]::FromSeconds(60))
-            $stoppedServices += $serviceName
+        if ($null -ne $svc) {
+            $installedServices += [string]$serviceName
+            if ($svc.Status -ne [ServiceProcess.ServiceControllerStatus]::Stopped) {
+                Write-Host "Stopping service $serviceName..."
+                Stop-Service -Name $serviceName -Force -ErrorAction Stop
+                $svc.WaitForStatus([ServiceProcess.ServiceControllerStatus]::Stopped, [TimeSpan]::FromSeconds(60))
+            }
         }
     }
-    return ,$stoppedServices
+    return $installedServices
 }
 
 function Start-WorkerServices {
     param([string[]]$Services)
     foreach ($serviceName in $Services) {
-        $svc = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
-        if ($null -ne $svc -and $svc.Status -ne [ServiceProcess.ServiceControllerStatus]::Running) {
+        $svc = Get-Service -Name $serviceName -ErrorAction Stop
+        if ($svc.Status -ne [ServiceProcess.ServiceControllerStatus]::Running) {
             Write-Host "Starting service $serviceName..."
             Start-Service -Name $serviceName -ErrorAction Stop
             $svc.WaitForStatus([ServiceProcess.ServiceControllerStatus]::Running, [TimeSpan]::FromSeconds(30))

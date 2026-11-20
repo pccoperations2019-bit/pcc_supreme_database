@@ -435,7 +435,9 @@ For map UI, keep Leaflet panes, controls and custom legends within the map's sta
 
 Prettier uses two spaces, single quotes, no semicolons, a 100-character line width and Tailwind class sorting. JavaScript is the preferred language in the contributor guidance; existing UI primitives contain TypeScript, but there is no dedicated type-check script in `package.json`.
 
-The current CI runs Pint on pushes and can commit formatting changes; Rector runs on pull requests. Context validation is a placeholder workflow, and the AI review workflow references Node 14 and an absent `src/index.js` entry point. There is no PHPUnit or frontend build/test job in the checked-in workflows, so do the relevant local checks and report their actual results.
+[Application CI](.github/workflows/ci.yml) runs on pushes and pull requests to `main`, and can also be started manually. It installs locked dependencies with PHP 8.4 and Node 22, builds the frontend, and runs `composer test` against a disposable MySQL 8.0 `testing` database. Successful runs retain the frontend build for seven days. CI uses no production credentials and does not deploy the live website.
+
+The Code Style workflow runs `vendor/bin/pint --test` on pushes. It has read-only repository permission and does not commit formatting changes. Rector runs a dry run on pull requests. Context validation only prints a placeholder message and is not a quality gate. The former AI review workflow called a missing `src/index.js` on Node 14, so it has been removed and must not be required on pull requests.
 
 [PR guidelines](.github/instructions/pr-guidelines.instructions.md) ask for focused changes, a problem/approach description, linked issues, test/manual-check details and at least two reviewers. No branch naming convention is specified there.
 
@@ -515,7 +517,7 @@ Run permission synchronization when releasing permission changes, after reviewin
 - The setup instructions were derived from manifests, configuration, schema, seeders and source; a new database/container installation and complete test suite were not executed during this documentation-only update.
 - The default environment's SQLite choice and several legacy seeders/factories do not match the current MySQL/schema path. The explicit local bootstrap avoids that default seeding path, but the full historical/demo dataset has not been validated.
 - Docker's browser download is architecture-specific; browser/PDF behavior across supported host operating systems remains to be checked. MinIO's mounted helper is not automatically run and includes policy changes that require review.
-- CI does not establish a test/build baseline, and some automation/generic guidance references tools or entry points that are not configured here.
+- Application CI defines a frontend build and PHP test check; a successful run must be observed before treating a commit as verified. Some other automation/generic guidance references tools or entry points that are not configured here.
 - There is no verified production deployment/backup/restore runbook in the repository. Confirm environment-specific storage, service supervision, retention and release procedures before deployment.
 - Milk-utilization configuration records unresolved source/unit policies and footnotes. Those domain decisions need confirmation before filling missing metrics or changing conversion formulas.
 # pcc_supreme_database

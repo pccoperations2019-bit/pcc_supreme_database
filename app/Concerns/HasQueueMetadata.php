@@ -19,16 +19,14 @@ trait HasQueueMetadata
 
         $previousStatus = $document->status?->value;
 
-        if ($type === 'import') {
-            if ($document->status !== DocumentStatusEnum::PROCESSING
-                || (int) $document->processing_submission_version !== (int) $document->submission_version
-                || ! $document->hasFinalApprovalForCurrentSubmission()
-                || ! DocumentImportDispatch::query()
-                    ->where('document_id', $document->id)
-                    ->where('submission_version', $document->submission_version)
-                    ->exists()) {
-                throw new RuntimeException('This document has no valid final approval for the current submission.');
-            }
+        if ($type === 'import' && ($document->status !== DocumentStatusEnum::PROCESSING
+            || (int) $document->processing_submission_version !== (int) $document->submission_version
+            || ! $document->hasFinalApprovalForCurrentSubmission()
+            || ! DocumentImportDispatch::query()
+                ->where('document_id', $document->id)
+                ->where('submission_version', $document->submission_version)
+                ->exists())) {
+            throw new RuntimeException('This document has no valid final approval for the current submission.');
         }
 
         // Exports create their file as part of the run, so only imports can be

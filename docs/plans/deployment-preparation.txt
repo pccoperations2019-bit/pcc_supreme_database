@@ -83,9 +83,21 @@ Verified current state
   This establishes a completed export/hash check, not a tested restoration.
   restoreVerified=false and activationAllowed=false. No SQL contents were
   transmitted to chat/GitHub. No import, migration or activation was performed.
+- On 19 November 2026 (08:55:50-09:08:56 UTC), the administrator also cleaned 14
+  disposable restore-test data/tmp directories and completed a protected backup of
+  C:\laragon\www\supreme-cbed-poc (including .env and storage/, excluding .git,
+  node_modules, *.sql, and NTFS junction public/storage):
+  C:\ProgramData\SUPREME-Backups\app-backup-20261119T085550Z-29972f97\supreme-cbed-poc-app.zip
+  Size: 174824803 bytes, 19586 entries (hasEnv=true, hasArtisan=true,
+  skippedLockedFiles=[]).
+  SHA256: 7d35f20a97c1b1648c0eb21cdd02738ecf5ef6fa528b82a51641bc3d29504faa
+  offServerCopyConfirmed remains false until copied to an off-server location.
 - PR commit d5f790a passed Application CI, Code Style, Context Validation and
-  Deployment Tools on Windows/Linux. Rector still reports two existing
-  application files needing changes; it remains enabled and the PR stays draft.
+  Deployment Tools on Windows/Linux. On 20 November 2026, the two remaining
+  Rector findings (app/Concerns/HasQueueMetadata.php and
+  app/Http/Controllers/DocumentController.php) were resolved and verified
+  with Rector --dry-run, Pint, and 42 Document feature tests (188 assertions),
+  and scheduler.bat was updated to PHP 8.4.27.
 
 Fresh database backup preparation
 New-ProductionDatabaseBackup.ps1 is a Windows PowerShell 5.1 administrator

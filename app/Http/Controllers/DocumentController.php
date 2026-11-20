@@ -533,7 +533,7 @@ class DocumentController extends Controller
         $stage = $this->reviewStageFor($request->user(), $document);
         $result = $this->recordReviewDecision($request, $document, $stage, 'approved', null);
 
-        if (! $result) {
+        if (! $result instanceof Document) {
             return back()->with('error', 'This document has already been reviewed or is no longer awaiting this review stage.');
         }
 
@@ -565,7 +565,7 @@ class DocumentController extends Controller
             $validated['rejection_reason'],
         );
 
-        if (! $rejected) {
+        if (! $rejected instanceof Document) {
             return back()->with('error', 'This document has already been reviewed.');
         }
 
@@ -614,13 +614,13 @@ class DocumentController extends Controller
         $user = request()->user();
 
         return [
-            'can_review' => $document
+            'can_review' => $document instanceof Document
                 ? ($this->mayReviewStage($user, $document, 'center') || $this->mayReviewStage($user, $document, 'agency'))
                 : ($this->hasReviewRole($user)),
-            'can_review_center' => $document
+            'can_review_center' => $document instanceof Document
                 ? $this->mayReviewStage($user, $document, 'center')
                 : ($user?->hasRole(UserRoleEnum::REVIEWER->value) && $user->center_id !== null && $user->can('review-documents')),
-            'can_review_agency' => $document
+            'can_review_agency' => $document instanceof Document
                 ? $this->mayReviewStage($user, $document, 'agency')
                 : (($this->isPccAdmin() || ($user?->hasRole(UserRoleEnum::REVIEWER->value) && $user->center_id === null))
                     && $user?->agency_id !== null && $user->can('review-documents')),
@@ -632,7 +632,7 @@ class DocumentController extends Controller
 
     private function hasReviewRole(?User $user): bool
     {
-        return $user !== null
+        return $user instanceof User
             && $user->can('review-documents')
             && ($user->hasRole(UserRoleEnum::AGENCY_ADMIN->value)
                 || $user->hasRole(UserRoleEnum::REVIEWER->value));

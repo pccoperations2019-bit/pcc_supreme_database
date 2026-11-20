@@ -21,7 +21,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: [self-hosted, windows, supreme-prod]
     environment: production
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - name: Verify main branch ref
@@ -36,6 +36,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: true
+          clean: false
 
       - name: Configure server PHP, Composer, and Node runtimes
         shell: powershell
@@ -61,16 +62,39 @@ jobs:
 
       - name: Run lint, frontend tests, and asset build
         shell: powershell
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: 'true'
+          PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 'true'
         run: |
           $ErrorActionPreference = 'Stop'
-          php C:\ProgramData\ComposerSetup\bin\composer.phar install --no-interaction --prefer-dist --no-progress
-          if ($LASTEXITCODE -ne 0) { throw 'Composer install failed.' }
+          $composerLockHash = (Get-FileHash -LiteralPath 'composer.lock' -Algorithm SHA256).Hash
+          $composerStamp = 'vendor\.composer-lock.sha256'
+          $pintBin = 'vendor\laravel\pint\builds\pint'
+          if (-not (Test-Path -LiteralPath $pintBin) -or -not (Test-Path -LiteralPath $composerStamp) -or ((Get-Content -LiteralPath $composerStamp -Raw).Trim() -ne $composerLockHash)) {
+            php C:\ProgramData\ComposerSetup\bin\composer.phar install --no-interaction --prefer-dist --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'Composer install failed.' }
+            Set-Content -LiteralPath $composerStamp -Value $composerLockHash -NoNewline
+          } else {
+            Write-Host "Runner vendor/ already matches composer.lock ($composerLockHash); skipping composer install."
+          }
           php vendor/laravel/pint/builds/pint --test
           if ($LASTEXITCODE -ne 0) { throw 'Pint code style check failed.' }
-          npm ci
-          if ($LASTEXITCODE -ne 0) { throw 'npm ci failed.' }
+
+          $npmLockHash = (Get-FileHash -LiteralPath 'package-lock.json' -Algorithm SHA256).Hash
+          $npmStamp = 'node_modules\.package-lock.sha256'
+          $viteBin = 'node_modules\.bin\vite.cmd'
+          if (-not (Test-Path -LiteralPath $viteBin) -or -not (Test-Path -LiteralPath $npmStamp) -or ((Get-Content -LiteralPath $npmStamp -Raw).Trim() -ne $npmLockHash)) {
+            npm install --prefer-offline --no-audit --no-fund
+            if ($LASTEXITCODE -ne 0) { throw 'npm install failed.' }
+            Set-Content -LiteralPath $npmStamp -Value $npmLockHash -NoNewline
+          } else {
+            Write-Host "Runner node_modules/ already matches package-lock.json ($npmLockHash); skipping npm install."
+          }
           npm run test:frontend
           if ($LASTEXITCODE -ne 0) { throw 'Frontend regression tests failed.' }
+          if (Test-Path -LiteralPath 'public\build') {
+            Remove-Item -LiteralPath 'public\build' -Recurse -Force
+          }
           npm run build
           if ($LASTEXITCODE -ne 0) { throw 'Vite production build failed.' }
 

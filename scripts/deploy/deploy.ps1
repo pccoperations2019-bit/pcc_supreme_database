@@ -221,7 +221,7 @@ function Start-WorkerServices {
 function Invoke-ArtisanOptimization {
     param([string]$TargetRoot)
     $artisan = Join-Path $TargetRoot 'artisan'
-    foreach ($cmd in @('optimize:clear', 'config:cache', 'route:cache', 'view:cache')) {
+    foreach ($cmd in @('optimize:clear')) {
         $output = & $PhpExecutable $artisan $cmd 2>&1
         if ($LASTEXITCODE -ne 0) {
             throw "php artisan $cmd failed: $($output -join ' ')"

@@ -81,6 +81,13 @@ function Sync-ManagedDirectory {
 
     foreach ($rel in $sourceMap.Keys) {
         $destFile = Join-Path $targetResolved $rel
+        if (Test-Path -LiteralPath $destFile -PathType Leaf) {
+            $srcInfo = [IO.FileInfo]::new($sourceMap[$rel])
+            $dstInfo = [IO.FileInfo]::new($destFile)
+            if ($srcInfo.Length -eq $dstInfo.Length -and (Get-ReleaseHash $sourceMap[$rel]) -eq (Get-ReleaseHash $destFile)) {
+                continue
+            }
+        }
         $destParent = Split-Path -Parent $destFile
         if (-not (Test-Path -LiteralPath $destParent -PathType Container)) {
             New-Item -ItemType Directory -Path $destParent -Force | Out-Null
@@ -149,19 +156,22 @@ function Sync-ApplicationTree {
     param(
         [Parameter(Mandatory)][string]$SourceRoot,
         [Parameter(Mandatory)][string]$TargetRoot,
-        [switch]$IsRollback
+        [switch]$IsRollback,
+        [switch]$SkipVendor
     )
 
     foreach ($dirName in $managedDirectories) {
         Sync-ManagedDirectory -SourceDir (Join-Path $SourceRoot $dirName) -TargetDir (Join-Path $TargetRoot $dirName)
     }
 
-    $sourceVendor = Join-Path $SourceRoot 'vendor'
-    $targetVendor = Join-Path $TargetRoot 'vendor'
-    if (Test-Path -LiteralPath $sourceVendor -PathType Container) {
-        Sync-ManagedDirectory -SourceDir $sourceVendor -TargetDir $targetVendor
-    } elseif ($IsRollback -and (Test-Path -LiteralPath $targetVendor -PathType Container)) {
-        Remove-Item -LiteralPath $targetVendor -Recurse -Force
+    if (-not $SkipVendor) {
+        $sourceVendor = Join-Path $SourceRoot 'vendor'
+        $targetVendor = Join-Path $TargetRoot 'vendor'
+        if (Test-Path -LiteralPath $sourceVendor -PathType Container) {
+            Sync-ManagedDirectory -SourceDir $sourceVendor -TargetDir $targetVendor
+        } elseif ($IsRollback -and (Test-Path -LiteralPath $targetVendor -PathType Container)) {
+            Remove-Item -LiteralPath $targetVendor -Recurse -Force
+        }
     }
 
     $sourceBootstrap = Join-Path $SourceRoot 'bootstrap'
@@ -303,12 +313,21 @@ $report = [ordered]@{
 
 $activationStarted = $false
 $servicesToRestart = @()
+$reuseLiveVendor = $false
 
 try {
     New-Item -ItemType Directory -Path $predeployDir -Force | Out-Null
     New-Item -ItemType Directory -Path $snapshotDir -Force | Out-Null
     New-Item -ItemType Directory -Path $packageDir -Force | Out-Null
     New-Item -ItemType Directory -Path $stageTargetRoot -Force | Out-Null
+
+    $liveComposerLock = Join-Path $live 'composer.lock'
+    $repoComposerLock = Join-Path $repo 'composer.lock'
+    $liveAutoload = Join-Path $live 'vendor\autoload.php'
+    $reuseLiveVendor = (Test-Path -LiteralPath $liveAutoload -PathType Leaf) -and
+        (Test-Path -LiteralPath $liveComposerLock -PathType Leaf) -and
+        (Test-Path -LiteralPath $repoComposerLock -PathType Leaf) -and
+        ((Get-ReleaseHash $liveComposerLock) -eq (Get-ReleaseHash $repoComposerLock))
 
     # 1. Pre-deploy backups (-BackupFirst)
     if (-not $DryRun) {
@@ -323,7 +342,7 @@ try {
     }
 
     Write-Host "Phase 1b: Capturing live application snapshot at $snapshotDir..."
-    Sync-ApplicationTree -SourceRoot $live -TargetRoot $snapshotDir
+    Sync-ApplicationTree -SourceRoot $live -TargetRoot $snapshotDir -SkipVendor:$reuseLiveVendor
     $report.snapshotCreated = $true
 
     # 2. Package & Stage Release
@@ -357,18 +376,30 @@ try {
     }
 
     if (-not $DryRun) {
-        Write-Host 'Phase 2c: Installing locked production PHP dependencies in staging...'
         if (-not (Test-Path -LiteralPath $PhpExecutable) -or -not (Test-Path -LiteralPath $ComposerPhar)) {
             throw 'Configured PHP or Composer PHAR is missing.'
         }
-        $composerOut = & $PhpExecutable $ComposerPhar install --working-dir="$stagedReleaseDir" `
-            --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-scripts 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            throw "Composer production install failed: $($composerOut -join ' ')"
-        }
-        $platformOut = & $PhpExecutable $ComposerPhar check-platform-reqs --working-dir="$stagedReleaseDir" --no-dev 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            throw "Composer platform requirement check failed: $($platformOut -join ' ')"
+        if ($reuseLiveVendor) {
+            Write-Host 'Phase 2c: composer.lock matches live; reusing live vendor/ and checking platform requirements...'
+            $platformOut = & $PhpExecutable $ComposerPhar check-platform-reqs --working-dir="$live" --no-dev 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                throw "Composer platform requirement check failed: $($platformOut -join ' ')"
+            }
+        } else {
+            Write-Host 'Phase 2c: Installing locked production PHP dependencies in staging...'
+            $liveVendorDir = Join-Path $live 'vendor'
+            if (Test-Path -LiteralPath $liveVendorDir -PathType Container) {
+                Sync-ManagedDirectory -SourceDir $liveVendorDir -TargetDir (Join-Path $stagedReleaseDir 'vendor')
+            }
+            $composerOut = & $PhpExecutable $ComposerPhar install --working-dir="$stagedReleaseDir" `
+                --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-scripts 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                throw "Composer production install failed: $($composerOut -join ' ')"
+            }
+            $platformOut = & $PhpExecutable $ComposerPhar check-platform-reqs --working-dir="$stagedReleaseDir" --no-dev 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                throw "Composer platform requirement check failed: $($platformOut -join ' ')"
+            }
         }
     }
 
@@ -379,7 +410,7 @@ try {
     }
 
     Write-Host "Phase 3: Syncing verified release to $live (preserving .env and storage)..."
-    Sync-ApplicationTree -SourceRoot $stagedReleaseDir -TargetRoot $live
+    Sync-ApplicationTree -SourceRoot $stagedReleaseDir -TargetRoot $live -SkipVendor:$reuseLiveVendor
     $markerContent = "commit=$Commit`ndeployedAtUtc=$([DateTime]::UtcNow.ToString('o'))`n"
     [IO.File]::WriteAllText((Join-Path $live 'DEPLOYED_COMMIT.txt'), $markerContent, [Text.UTF8Encoding]::new($false))
     $report.activated = $true
@@ -408,7 +439,7 @@ try {
             if (-not $DryRun) {
                 $null = Stop-WorkerServices
             }
-            Sync-ApplicationTree -SourceRoot $snapshotDir -TargetRoot $live -IsRollback
+            Sync-ApplicationTree -SourceRoot $snapshotDir -TargetRoot $live -IsRollback -SkipVendor:$reuseLiveVendor
             if (-not $DryRun) {
                 Invoke-ArtisanOptimization -TargetRoot $live
                 Start-WorkerServices -Services $servicesToRestart

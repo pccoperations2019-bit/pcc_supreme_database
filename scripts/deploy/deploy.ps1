@@ -228,14 +228,29 @@ function Start-WorkerServices {
     }
 }
 
+function Invoke-NativePhpCommand {
+    param(
+        [Parameter(Mandatory)][string[]]$Arguments,
+        [Parameter(Mandatory)][string]$FailureMessage
+    )
+    $previousErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $output = & $PhpExecutable @Arguments 2>&1
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorAction
+    }
+    if ($exitCode -ne 0) {
+        throw "$FailureMessage (exit $exitCode): $($output -join ' ')"
+    }
+}
+
 function Invoke-ArtisanOptimization {
     param([string]$TargetRoot)
     $artisan = Join-Path $TargetRoot 'artisan'
     foreach ($cmd in @('optimize:clear')) {
-        $output = & $PhpExecutable $artisan $cmd 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            throw "php artisan $cmd failed: $($output -join ' ')"
-        }
+        Invoke-NativePhpCommand -Arguments @($artisan, $cmd) -FailureMessage "php artisan $cmd failed"
     }
 }
 
@@ -381,25 +396,20 @@ try {
         }
         if ($reuseLiveVendor) {
             Write-Host 'Phase 2c: composer.lock matches live; reusing live vendor/ and checking platform requirements...'
-            $platformOut = & $PhpExecutable $ComposerPhar check-platform-reqs --working-dir="$live" --no-dev 2>&1
-            if ($LASTEXITCODE -ne 0) {
-                throw "Composer platform requirement check failed: $($platformOut -join ' ')"
-            }
+            Invoke-NativePhpCommand -Arguments @($ComposerPhar, 'check-platform-reqs', "--working-dir=$live", '--no-dev') `
+                -FailureMessage 'Composer platform requirement check failed'
         } else {
             Write-Host 'Phase 2c: Installing locked production PHP dependencies in staging...'
             $liveVendorDir = Join-Path $live 'vendor'
             if (Test-Path -LiteralPath $liveVendorDir -PathType Container) {
                 Sync-ManagedDirectory -SourceDir $liveVendorDir -TargetDir (Join-Path $stagedReleaseDir 'vendor')
             }
-            $composerOut = & $PhpExecutable $ComposerPhar install --working-dir="$stagedReleaseDir" `
-                --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-scripts 2>&1
-            if ($LASTEXITCODE -ne 0) {
-                throw "Composer production install failed: $($composerOut -join ' ')"
-            }
-            $platformOut = & $PhpExecutable $ComposerPhar check-platform-reqs --working-dir="$stagedReleaseDir" --no-dev 2>&1
-            if ($LASTEXITCODE -ne 0) {
-                throw "Composer platform requirement check failed: $($platformOut -join ' ')"
-            }
+            Invoke-NativePhpCommand -Arguments @(
+                $ComposerPhar, 'install', "--working-dir=$stagedReleaseDir",
+                '--no-dev', '--no-interaction', '--prefer-dist', '--optimize-autoloader', '--no-scripts'
+            ) -FailureMessage 'Composer production install failed'
+            Invoke-NativePhpCommand -Arguments @($ComposerPhar, 'check-platform-reqs', "--working-dir=$stagedReleaseDir", '--no-dev') `
+                -FailureMessage 'Composer platform requirement check failed'
         }
     }
 

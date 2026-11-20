@@ -86,6 +86,7 @@ jobs:
           if (-not (Test-Path -LiteralPath $viteBin) -or -not (Test-Path -LiteralPath $npmStamp) -or ((Get-Content -LiteralPath $npmStamp -Raw).Trim() -ne $npmLockHash)) {
             npm install --prefer-offline --no-audit --no-fund
             if ($LASTEXITCODE -ne 0) { throw 'npm install failed.' }
+            & git checkout -- package-lock.json
             Set-Content -LiteralPath $npmStamp -Value $npmLockHash -NoNewline
           } else {
             Write-Host "Runner node_modules/ already matches package-lock.json ($npmLockHash); skipping npm install."

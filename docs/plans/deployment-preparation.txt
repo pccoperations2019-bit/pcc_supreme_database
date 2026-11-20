@@ -98,6 +98,14 @@ Verified current state
   app/Http/Controllers/DocumentController.php) were resolved and verified
   with Rector --dry-run, Pint, and 42 Document feature tests (188 assertions),
   and scheduler.bat was updated to PHP 8.4.27.
+- On 20 November 2026, a read-only server audit on 192.168.146.11 verified:
+  (1) All 79 files in C:\laragon\www\supreme-cbed-poc\database\migrations match
+  the repository's SHA256 hashes (0 missing, 0 extra, 0 mismatches), and
+  php artisan migrate:status reports 0 pending migrations against pcc.
+  (2) System Chrome (C:\Program Files\Google\Chrome\Application\chrome.exe,
+  Chrome/157.0.8103.79) and Puppeteer launch cleanly with pinned Node v22.23.0
+  (C:\ProgramData\SUPREME-Deploy\runtime\node-v22.23.0). BrowserShotEnvironmentService
+  was updated to resolve that pinned Windows Node/npm runtime path directly.
 
 Fresh database backup preparation
 New-ProductionDatabaseBackup.ps1 is a Windows PowerShell 5.1 administrator

@@ -126,6 +126,13 @@ class BrowserShotEnvironmentService
             return ['node'];
         }
 
+        if ($this->isWindowsEnvironment()) {
+            return [
+                'C:\\ProgramData\\SUPREME-Deploy\\runtime\\node-v22.23.0\\node.exe',
+                'node',
+            ];
+        }
+
         return [
             '/opt/homebrew/opt/node@22/bin/node',
             '/opt/homebrew/opt/node/bin/node',
@@ -138,6 +145,13 @@ class BrowserShotEnvironmentService
     {
         if ($this->isDockerEnvironment()) {
             return ['npm'];
+        }
+
+        if ($this->isWindowsEnvironment()) {
+            return [
+                'C:\\ProgramData\\SUPREME-Deploy\\runtime\\node-v22.23.0\\npm.cmd',
+                'npm',
+            ];
         }
 
         return [
@@ -164,7 +178,15 @@ class BrowserShotEnvironmentService
 
     private function isExecutable(string $path): bool
     {
-        return $path === 'node' || $path === 'npm' || is_executable($path);
+        if ($path === 'node' || $path === 'npm') {
+            return true;
+        }
+
+        if ($this->isWindowsEnvironment() && preg_match('/\.(exe|cmd|bat)$/i', $path) === 1) {
+            return is_file($path);
+        }
+
+        return is_executable($path);
     }
 
     private function getenv(string $name): bool

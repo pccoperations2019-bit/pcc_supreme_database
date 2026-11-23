@@ -158,6 +158,26 @@ class DashboardCenterAdminScopeTest extends TestCase
             );
     }
 
+    public function test_center_admin_program_selections_remain_scoped_to_their_center(): void
+    {
+        $mine = $this->center('MINE');
+        $theirs = $this->center('THEIRS');
+        $admin = $this->centerAdmin($mine);
+
+        foreach (['ih', 'cbed', 'all'] as $program) {
+            $pageProgram = $program === 'ih' ? 'ih' : 'cbed';
+
+            $this->actingAs($admin)
+                ->get("/dashboard?program={$pageProgram}&filter[program]={$program}&filter[center_id]={$theirs->id}")
+                ->assertOk()
+                ->assertInertia(fn ($page) => $page
+                    ->where('_program', $pageProgram)
+                    ->where('centers', fn ($centers) => count($centers) === 1
+                        && $centers[0]['code'] === 'MINE')
+                );
+        }
+    }
+
     public function test_agency_admin_still_sees_every_center(): void
     {
         $this->center('MINE');

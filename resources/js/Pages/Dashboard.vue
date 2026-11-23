@@ -21,7 +21,7 @@ const { isCenterAdmin, user } = useAuth()
 const inertiaProps = computed(() => page.props || {})
 
 const readFilterParams = () => {
-  const searchParams = new URLSearchParams(window.location.search)
+  const searchParams = new window.URLSearchParams(window.location.search)
   const filterParams = {}
   for (const [key, value] of searchParams.entries()) {
     if (key.startsWith('filter[')) {
@@ -47,7 +47,11 @@ watch(
   { deep: true }
 )
 
-const programFilter = ref(isCenterAdmin.value ? 'cbed' : readFilterParams().program || 'cbed')
+const programFilter = ref(
+  readFilterParams().program ||
+    new window.URLSearchParams(window.location.search).get('program') ||
+    'cbed'
+)
 
 const activeDashboard = computed(() => (programFilter.value === 'ih' ? 'center' : 'cbed'))
 
@@ -254,23 +258,15 @@ watch(
   }
 )
 
-const programOptions = computed(() =>
-  isCenterAdmin.value
-    ? [{ label: 'CBED', value: 'cbed' }]
-    : [
-        { label: 'IH', value: 'ih' },
-        { label: 'CBED', value: 'cbed' },
-        { label: 'IH + CBED', value: 'all' },
-      ]
-)
+const programOptions = [
+  { label: 'IH', value: 'ih' },
+  { label: 'CBED', value: 'cbed' },
+  { label: 'IH + CBED', value: 'all' },
+]
 
 watch(
   () => programFilter.value,
   value => {
-    if (isCenterAdmin.value) {
-      programFilter.value = 'cbed'
-      return
-    }
     pushDashboardFilters(productionYear.value, productionMonth.value, value)
   }
 )
@@ -280,8 +276,9 @@ watch(
 watch(
   () => page.url,
   () => {
-    if (isCenterAdmin.value) return
-    const urlProg = readFilterParams().program
+    const urlProg =
+      readFilterParams().program ||
+      new window.URLSearchParams(window.location.search).get('program')
     if (urlProg && urlProg !== programFilter.value) {
       programFilter.value = urlProg
     }
@@ -571,7 +568,7 @@ const handleCenterSelected = centerId => {
     <div class="flex flex-col lg:flex-row">
       <div class="w-full lg:w-2/3">
         <DashboardCBED
-          v-if="isCenterAdmin || activeDashboard === 'cbed'"
+          v-if="activeDashboard === 'cbed'"
           :total-fcas="totalFcas"
           :total-farmers="totalFarmers"
           :total-animals="totalAnimals"

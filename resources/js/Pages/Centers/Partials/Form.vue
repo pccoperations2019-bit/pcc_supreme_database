@@ -37,11 +37,7 @@ import {
 import { toastFlash } from '@/lib/flashToasts'
 import { usePsgcAddress } from '@/composable/usePsgcAddress'
 import { usePsgcCascade } from '@/composable/usePsgcCascade'
-import {
-  normalizeAnimalInventory,
-  animalInventoryPayload,
-  ANIMAL_INVENTORY_BREEDS,
-} from '@/composable/useFarmerForm'
+import { normalizeAnimalInventory, animalInventoryPayload } from '@/composable/useFarmerForm'
 
 const props = defineProps({
   mode: {
@@ -1902,13 +1898,11 @@ const appendAnimalInventory = formData => {
         <!-- View mode: read-only table -->
         <div v-if="isViewMode">
           <div v-if="hasAnimalInventory" class="overflow-x-auto rounded-lg border">
-            <Table class="min-w-[720px]">
+            <Table class="min-w-[360px]">
               <TableHeader>
                 <TableRow class="bg-muted/50">
                   <TableHead class="w-[240px]">Classification</TableHead>
                   <TableHead class="w-[120px]">Count</TableHead>
-                  <TableHead class="w-[140px]">Breed</TableHead>
-                  <TableHead>Remarks</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1920,16 +1914,12 @@ const appendAnimalInventory = formData => {
                   <TableCell>{{
                     row.count === '' || row.count === null ? '-' : row.count
                   }}</TableCell>
-                  <TableCell>{{ row.breed || '-' }}</TableCell>
-                  <TableCell>{{ row.remarks || '-' }}</TableCell>
                 </TableRow>
               </TableBody>
               <TableFooter>
                 <TableRow class="bg-muted/50">
                   <TableCell class="font-semibold">TOTAL</TableCell>
                   <TableCell class="font-semibold">{{ animalInventoryTotal }}</TableCell>
-                  <TableCell />
-                  <TableCell />
                 </TableRow>
               </TableFooter>
             </Table>
@@ -1942,13 +1932,11 @@ const appendAnimalInventory = formData => {
         <!-- Edit / Create mode: editable table -->
         <div v-else class="space-y-4">
           <div class="overflow-x-auto rounded-lg border">
-            <Table class="min-w-[720px]">
+            <Table class="min-w-[360px]">
               <TableHeader>
                 <TableRow class="bg-muted/50">
                   <TableHead class="w-[240px]">Classification</TableHead>
                   <TableHead class="w-[120px]">Count</TableHead>
-                  <TableHead class="w-[140px]">Breed</TableHead>
-                  <TableHead>Remarks</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1962,33 +1950,12 @@ const appendAnimalInventory = formData => {
                       class="w-24"
                     />
                   </TableCell>
-                  <TableCell>
-                    <Select v-model="form.animal_inventory[index].breed">
-                      <SelectTrigger class="w-32"
-                        ><SelectValue placeholder="Select"
-                      /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem
-                          v-for="breed in ANIMAL_INVENTORY_BREEDS"
-                          :key="breed"
-                          :value="breed"
-                        >
-                          {{ breed }}
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <Input v-model="form.animal_inventory[index].remarks" />
-                  </TableCell>
                 </TableRow>
               </TableBody>
               <TableFooter>
                 <TableRow class="bg-muted/50">
                   <TableCell class="font-semibold">TOTAL</TableCell>
                   <TableCell class="font-semibold">{{ animalInventoryTotal }}</TableCell>
-                  <TableCell />
-                  <TableCell />
                 </TableRow>
               </TableFooter>
             </Table>

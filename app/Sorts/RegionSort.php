@@ -68,7 +68,7 @@ class RegionSort implements Sort
             $psgcCode = str_pad((string) $regionNumber, 2, '0', STR_PAD_LEFT).str_repeat('0', 8);
             $region = AddressRegionEnum::fromPsgcCode($psgcCode);
 
-            if (!$region instanceof \App\Enums\AddressRegionEnum) {
+            if (! $region instanceof \App\Enums\AddressRegionEnum) {
                 continue;
             }
 

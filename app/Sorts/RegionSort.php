@@ -60,6 +60,23 @@ class RegionSort implements Sort
             }
         }
 
+        // Some address records store the region PSGC code instead of a label
+        // (for example, 100000000 for Region I). Recognize both the padded
+        // ten-digit code and its nine-digit form when the leading zero is lost.
+        $sortOrder = AddressRegionEnum::sortOrder();
+        for ($regionNumber = 1; $regionNumber <= 19; $regionNumber++) {
+            $psgcCode = str_pad((string) $regionNumber, 2, '0', STR_PAD_LEFT).str_repeat('0', 8);
+            $region = AddressRegionEnum::fromPsgcCode($psgcCode);
+
+            if (! $region) {
+                continue;
+            }
+
+            foreach (array_unique([$psgcCode, ltrim($psgcCode, '0')]) as $alias) {
+                $rankings[strtoupper($alias)] ??= $sortOrder[$region->value];
+            }
+        }
+
         return $rankings;
     }
 

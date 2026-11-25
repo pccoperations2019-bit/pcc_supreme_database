@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
+import ImageCropUpload from '@/components/ImageCropUpload.vue'
 import {
   cn,
   normalizeProjectInvolvementOptions,
@@ -474,8 +475,7 @@ const submit = () => {
 const goToEdit = () => router.visit(route('dairy-boxes.edit', props.dairyBox.id))
 const goToView = () => router.visit(route('dairy-boxes.show', props.dairyBox.id))
 
-const handleLogoChange = event => {
-  const file = event.target.files[0]
+const handleLogoChange = file => {
   if (file) {
     logoFile.value = file
     logoPreview.value = window.URL.createObjectURL(file)
@@ -524,16 +524,7 @@ const handleLogoChange = event => {
               </AvatarFallback>
             </Avatar>
             <div v-if="!isViewMode" class="mt-4">
-              <Label for="logo-upload" class="sr-only">Upload Logo</Label>
-              <div class="rounded-md bg-gray-100 p-2 text-gray-700">
-                <Input
-                  id="logo-upload"
-                  type="file"
-                  accept="image/*"
-                  class="w-full cursor-pointer bg-transparent text-gray-700 file:mr-2 file:cursor-pointer file:rounded file:border-0 file:bg-gray-300 file:px-3 file:py-1 file:text-gray-700"
-                  @change="handleLogoChange"
-                />
-              </div>
+              <ImageCropUpload label="Dairy box logo" @change="handleLogoChange" />
             </div>
           </div>
 

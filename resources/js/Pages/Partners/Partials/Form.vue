@@ -6,6 +6,7 @@ import { Pencil, Trash2 } from 'lucide-vue-next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import ImageCropUpload from '@/components/ImageCropUpload.vue'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import {
   Table,
@@ -574,8 +575,7 @@ const updateDocument = async () => {
   }
 }
 
-const handleLogoChange = event => {
-  const file = event.target.files[0]
+const handleLogoChange = file => {
   if (file) {
     logoFile.value = file
     logoPreview.value = window.URL.createObjectURL(file)
@@ -954,16 +954,7 @@ const openMetadataModal = () => {
           </AvatarFallback>
         </Avatar>
         <div v-if="isFormMode" class="mt-4">
-          <Label for="logo-upload" class="sr-only">Upload Logo</Label>
-          <div class="rounded-md bg-gray-100 p-2 text-gray-700">
-            <Input
-              id="logo-upload"
-              type="file"
-              accept="image/*"
-              class="w-full cursor-pointer bg-transparent text-gray-700 file:mr-2 file:cursor-pointer file:rounded file:border-0 file:bg-gray-300 file:px-3 file:py-1 file:text-gray-700"
-              @change="handleLogoChange"
-            />
-          </div>
+          <ImageCropUpload label="Partner logo" @change="handleLogoChange" />
         </div>
       </div>
 
